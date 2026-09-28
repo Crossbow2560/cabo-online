@@ -85,8 +85,26 @@ export type Action =
   /** System action (server only): a player left or was kicked for being offline too long. */
   | { type: 'REMOVE_PLAYER'; playerId: string; reason?: string };
 
+/** A place a card can be on the table. `held` = the card a player drew and hasn't placed yet. */
+export type Spot =
+  | { at: 'slot'; playerId: string; slot: number }
+  | { at: 'stock' }
+  | { at: 'discard' }
+  | { at: 'held'; playerId: string };
+
+/**
+ * What physically moved, so clients can animate it. Public: `card` is only set when that card is
+ * already public (going to / coming from the discard, or revealed by a wrong snap).
+ */
+export interface Motion {
+  moves?: { from: Spot; to: Spot; card?: Card }[];
+  /** Cards to call attention to (someone peeked at it; a wrong snap reveals `card`). */
+  flash?: { spot: Spot; card?: Card }[];
+}
+
 /** A log line. `to` set = private to that player (peek results); otherwise public. */
 export interface GameEvent {
+  motion?: Motion;
   to?: string;
   text: string;
   /** Private peeks only: which card to flip face-up for the peeker. */

@@ -9,13 +9,14 @@ export interface SlotState {
 }
 
 /** A player's cards in their square formation (plus extra columns for penalty cards). */
-export function Hand({ slots, size, state, onCard, showLabels = false, ownerName }: {
+export function Hand({ slots, size, state, onCard, showLabels = false, ownerName, ownerId }: {
   slots: (SlotView | null)[];
   size: CardSize;
   state: (slot: number) => SlotState;
   onCard: (slot: number) => void;
   showLabels?: boolean;
   ownerName: string;
+  ownerId: string;
 }) {
   return (
     <div className={`hand hand--${size}`}>
@@ -33,6 +34,7 @@ export function Hand({ slots, size, state, onCard, showLabels = false, ownerName
               label={showLabels ? `#${i + 1}` : undefined}
               onClick={() => onCard(i)}
               title={`${ownerName} — card #${i + 1}`}
+              spot={`slot:${ownerId}:${i}`}
             />
           </div>
         );

@@ -18,7 +18,7 @@ export function Seat({ player, view, room, now, arc, state, onCard }: {
   const info = room.players.find((p) => p.id === player.id);
   const turn = view.currentPlayerId === player.id && view.phase !== 'ended' && view.phase !== 'peek';
   return (
-    <div className={`seat ${turn ? 'seat--turn' : ''}`} style={{ '--arc': arc } as React.CSSProperties}>
+    <div className={`seat ${turn ? 'seat--turn' : ''}`} style={{ '--arc': arc } as React.CSSProperties} data-seat={player.id}>
       <div className="seat__plate">
         <span className={`status-dot ${info?.connected ? 'status-dot--on' : ''}`} aria-hidden />
         <span className="seat__name">{player.name}</span>
@@ -31,7 +31,7 @@ export function Seat({ player, view, room, now, arc, state, onCard }: {
           <span className="away"> · away {formatCountdown(info.offlineSince + room.kickAfterMs - now)}</span>
         )}
       </div>
-      <Hand slots={player.slots} size="sm" state={state} onCard={onCard} ownerName={player.name} />
+      <Hand slots={player.slots} size="sm" state={state} onCard={onCard} ownerName={player.name} ownerId={player.id} />
     </div>
   );
 }

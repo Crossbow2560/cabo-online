@@ -518,6 +518,51 @@ describe('kicking offline players (REMOVE_PLAYER)', () => {
   });
 });
 
+describe('motion events (for client animations)', () => {
+  const motionOf = (r: ReturnType<typeof run>) => {
+    if (!r.ok) throw new Error(r.message);
+    return r.events.filter((e) => !e.to && e.motion).map((e) => e.motion);
+  };
+
+  it('draw: stock → held; keep: held → slot and slot → discard with the (public) old card', () => {
+    let s = playing({ hands: HANDS, stock: ['AS'] });
+    expect(motionOf(run(s, { type: 'DRAW_STOCK', playerId: 'p1' }))).toEqual([
+      { moves: [{ from: { at: 'stock' }, to: { at: 'held', playerId: 'p1' } }] },
+    ]);
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p1' });
+    expect(motionOf(run(s, { type: 'KEEP', playerId: 'p1', slot: 2 }))).toEqual([
+      {
+        moves: [
+          { from: { at: 'held', playerId: 'p1' }, to: { at: 'slot', playerId: 'p1', slot: 2 } },
+          { from: { at: 'slot', playerId: 'p1', slot: 2 }, to: { at: 'discard' }, card: c('9H') },
+        ],
+      },
+    ]);
+  });
+
+  it('blind swap moves both cards, face-down (no card values)', () => {
+    let s = playing({ hands: HANDS, stock: ['QD'] });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p1' });
+    s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p1' });
+    const [m] = motionOf(run(s, { type: 'BLIND_SWAP', playerId: 'p1', mySlot: 0, targetId: 'p2', slot: 3 }));
+    expect(m!.moves).toEqual([
+      { from: { at: 'slot', playerId: 'p1', slot: 0 }, to: { at: 'slot', playerId: 'p2', slot: 3 } },
+      { from: { at: 'slot', playerId: 'p2', slot: 3 }, to: { at: 'slot', playerId: 'p1', slot: 0 } },
+    ]);
+  });
+
+  it('wrong snap flashes the revealed card and deals the penalty into the new slot', () => {
+    let s = playing({ hands: HANDS, stock: ['2D', '5D'] });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p1' });
+    s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p1' });
+    const [m] = motionOf(run(s, { type: 'SNAP', playerId: 'p2', windowId: s.windowCounter, ownerId: 'p2', slot: 0 }));
+    expect(m).toEqual({
+      flash: [{ spot: { at: 'slot', playerId: 'p2', slot: 0 }, card: c('JC') }],
+      moves: [{ from: { at: 'stock' }, to: { at: 'slot', playerId: 'p2', slot: 4 } }],
+    });
+  });
+});
+
 describe('R24: redaction never leaks hidden cards', () => {
   it('fuzzed random games: views only show entitled cards', () => {
     for (let seed = 1; seed <= 40; seed++) {
@@ -563,7 +608,17 @@ describe('R24: redaction never leaks hidden cards', () => {
         const a = step % 97 === 96 ? tries[0] : tries[pick(tries.length)];
         if (a.type === 'TICK') now = s.deadline ?? now;
         const r = applyAction(s, a, now);
-        if (r.ok) s = r.state;
+        if (r.ok) {
+          // R24 for motions: a card face only rides along when that card is public.
+          for (const e of r.events) {
+            if (e.to) expect(e.motion).toBeUndefined();
+            for (const mv of e.motion?.moves ?? []) {
+              if (mv.card) expect(mv.from.at === 'discard' || mv.to.at === 'discard').toBe(true);
+            }
+            for (const f of e.motion?.flash ?? []) if (f.card) expect(e.text).toContain('tried to snap');
+          }
+          s = r.state;
+        }
         // card conservation
         const total = s.stock.length + s.discard.length + s.players.reduce((n, p) => n + p.slots.filter(Boolean).length, 0) + (s.phase.kind === 'drawn' ? 1 : 0);
         expect(total).toBe(54);

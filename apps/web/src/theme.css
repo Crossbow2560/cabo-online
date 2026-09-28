@@ -957,3 +957,24 @@ button.pcard:disabled { opacity: 1; }
 .pcard__label { line-height: 1; }
 .pile { gap: 6px; }
 .pile__stack { margin: 0 9px 9px 0; } /* room for the 9px stacked-deck shadow */
+
+/* ---------- card motion ---------- */
+.motion-layer { position: fixed; inset: 0; pointer-events: none; z-index: 50; }
+.motion-layer .pcard__back-icon svg, .motion-layer .pcard__joker-icon svg { width: 100%; height: 100%; display: block; }
+/* the card that just changed keeps a glow for a moment ("that's the one that was replaced") */
+.pcard[data-changed] { animation: card-changed 2.6s ease-out forwards; }
+@keyframes card-changed {
+  0%, 55% { outline: 3px solid var(--cream); outline-offset: 2px; box-shadow: 0 0 0 7px var(--sand), 0 0 18px 6px var(--sand); }
+  100% { outline: 3px solid transparent; outline-offset: 2px; }
+}
+/* someone peeked at this card */
+.pcard[data-flash] { animation: card-peek 0.9s ease-in-out; }
+@keyframes card-peek {
+  0%, 100% { transform: none; }
+  20% { transform: translateY(-6px) rotate(-6deg); }
+  45% { transform: translateY(-6px) rotate(6deg); }
+  70% { transform: translateY(-3px) rotate(-3deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pcard[data-flash] { animation: none; outline: 3px solid var(--cream); }
+}

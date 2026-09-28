@@ -101,6 +101,31 @@ describe('server', () => {
     expect(await (await fetch(`http://localhost:${port}/api/config`)).json()).toEqual({ publicUrl: 'https://cabo.nishit-db.com' });
   });
 
+  it('a store outage is a retryable 503 / "unavailable", never a 401 that would wipe the token', async () => {
+    class FlakyStore extends MemoryStore {
+      down = false;
+      override async findSession(h: string) {
+        if (this.down) throw new Error('db down');
+        return super.findSession(h);
+      }
+    }
+    const store = new FlakyStore();
+    const { url } = await start(store);
+    const sess = (await (await fetch(`${url}/api/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ nickname: 'Ana' }),
+    })).json()) as { token: string };
+    store.down = true;
+    const r = await fetch(`${url}/api/session`, { headers: { authorization: `Bearer ${sess.token}` } });
+    expect(r.status).toBe(503);
+    const sock = connect(url, { auth: { token: sess.token }, transports: ['websocket'], forceNew: true, reconnection: false });
+    sockets.push(sock);
+    expect((await new Promise<Error>((res) => sock.on('connect_error', res))).message).toBe('unavailable');
+    store.down = false;
+    expect((await fetch(`${url}/api/session`, { headers: { authorization: `Bearer ${sess.token}` } })).status).toBe(200);
+  });
+
   it('rejects sockets without a valid session', async () => {
     const { url } = await start();
     const s = connect(url, { auth: { token: 'nope' }, transports: ['websocket'], forceNew: true });

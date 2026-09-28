@@ -78,7 +78,12 @@ export async function createCaboServer(opts: ServerOptions) {
     if (nickname.length < 1 || nickname.length > 20) return res.status(400).json({ error: 'Nickname must be 1-20 characters' });
     const token = randomBytes(32).toString('hex');
     const id = randomUUID();
-    await store.createSession(id, hashToken(token), nickname);
+    try {
+      await store.createSession(id, hashToken(token), nickname);
+    } catch (e) {
+      console.error('[session]', e);
+      return res.status(503).json({ error: 'Server busy, try again' });
+    }
     res.json({ sessionId: id, nickname, token });
   });
 
@@ -90,7 +95,13 @@ export async function createCaboServer(opts: ServerOptions) {
 
   app.get('/api/session', async (req, res) => {
     const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
-    const s = token ? await store.findSession(hashToken(token)) : null;
+    let s: SessionRecord | null;
+    try {
+      s = token ? await store.findSession(hashToken(token)) : null;
+    } catch (e) {
+      console.error('[session]', e);
+      return res.status(503).json({ error: 'Server busy, try again' }); // client keeps its token and retries
+    }
     if (!s) return res.status(401).json({ error: 'Unknown session' });
     const room = rooms.roomOf(s.id);
     res.json({ sessionId: s.id, nickname: s.nickname, roomCode: room?.rec.code ?? null });
@@ -104,7 +115,13 @@ export async function createCaboServer(opts: ServerOptions) {
   // ---- sockets ----
   io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
-    const session = typeof token === 'string' ? await store.findSession(hashToken(token)) : null;
+    let session: SessionRecord | null;
+    try {
+      session = typeof token === 'string' ? await store.findSession(hashToken(token)) : null;
+    } catch (e) {
+      console.error('[auth]', e);
+      return next(new Error('unavailable')); // transient (e.g. DB hiccup): client retries
+    }
     if (!session) return next(new Error('unauthorized'));
     socket.data.session = session;
     socket.data.snaps = [];

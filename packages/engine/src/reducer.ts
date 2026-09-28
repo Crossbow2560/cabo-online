@@ -8,6 +8,8 @@ import {
   type ActionResult,
   type GameEvent,
   type GameState,
+  type Motion,
+  type Spot,
   type PlayerState,
   type Timings,
 } from './state';
@@ -81,6 +83,11 @@ export function applyAction(prev: GameState, action: Action, now: number): Actio
   }
 }
 
+const slotAt = (playerId: string, slot: number): Spot => ({ at: 'slot', playerId, slot });
+const STOCK: Spot = { at: 'stock' };
+const DISCARD: Spot = { at: 'discard' };
+const held = (playerId: string): Spot => ({ at: 'held', playerId });
+
 class Ctx {
   constructor(private s: GameState, private events: GameEvent[], private now: number) {}
 
@@ -111,7 +118,9 @@ class Ctx {
       const target = this.player(phase.targetId);
       target.slots[phase.slot] = card; // R17: fills the exact gap
       me.slots[g.mySlot] = null;
-      this.log(`${me.name} moved their slot ${g.mySlot + 1} into ${target.name}'s slot ${phase.slot + 1}`);
+      this.log(`${me.name} moved their slot ${g.mySlot + 1} into ${target.name}'s slot ${phase.slot + 1}`, {
+        moves: [{ from: slotAt(me.id, g.mySlot), to: slotAt(target.id, phase.slot) }],
+      });
       return this.advanceTurn();
     }
 
@@ -123,7 +132,7 @@ class Ctx {
         const card = this.draw();
         if (!card) return this.endRound('deck_exhausted');
         s.phase = { kind: 'drawn', card };
-        this.log(`${me.name} drew from the stockpile`);
+        this.log(`${me.name} drew from the stockpile`, { moves: [{ from: STOCK, to: held(me.id) }] });
         this.private(me.id, `You drew ${cardLabel(card)}`);
         return;
       }
@@ -133,7 +142,12 @@ class Ctx {
         const taken = s.discard.pop()!;
         me.slots[a.slot] = taken;
         s.discard.push(old);
-        this.log(`${me.name} took ${cardLabel(taken)} from the discard into slot ${a.slot + 1} and discarded ${cardLabel(old)}`);
+        this.log(`${me.name} took ${cardLabel(taken)} from the discard into slot ${a.slot + 1} and discarded ${cardLabel(old)}`, {
+          moves: [
+            { from: DISCARD, to: slotAt(me.id, a.slot), card: taken },
+            { from: slotAt(me.id, a.slot), to: DISCARD, card: old },
+          ],
+        });
         return this.openSnapWindow();
       }
       case 'CALL_CABO': {
@@ -149,13 +163,18 @@ class Ctx {
         const old = this.ownCard(me, a.slot);
         me.slots[a.slot] = drawn;
         s.discard.push(old);
-        this.log(`${me.name} kept the drawn card in slot ${a.slot + 1} and discarded ${cardLabel(old)}`);
+        this.log(`${me.name} kept the drawn card in slot ${a.slot + 1} and discarded ${cardLabel(old)}`, {
+          moves: [
+            { from: held(me.id), to: slotAt(me.id, a.slot) },
+            { from: slotAt(me.id, a.slot), to: DISCARD, card: old },
+          ],
+        });
         return this.openSnapWindow();
       }
       case 'DISCARD_DRAWN': {
         const drawn = this.expectPhase('drawn').card;
         s.discard.push(drawn);
-        this.log(`${me.name} discarded ${cardLabel(drawn)}`);
+        this.log(`${me.name} discarded ${cardLabel(drawn)}`, { moves: [{ from: held(me.id), to: DISCARD, card: drawn }] });
         // R7: abilities only trigger on a stock-drawn card discarded directly.
         const ability = abilityOf(drawn);
         if (ability && this.abilityUsable(me, ability)) {
@@ -174,7 +193,7 @@ class Ctx {
         const ph = this.expectPhase('ability');
         if (ph.ability !== 'peek_own') reject('invalid', 'Wrong ability');
         const card = this.ownCard(me, a.slot);
-        this.log(`${me.name} looked at their own slot ${a.slot + 1}`);
+        this.log(`${me.name} looked at their own slot ${a.slot + 1}`, { flash: [{ spot: slotAt(me.id, a.slot) }] });
         this.private(me.id, `Your slot ${a.slot + 1} is ${cardLabel(card)}`, { playerId: me.id, slot: a.slot, card });
         return this.openSnapWindow();
       }
@@ -184,7 +203,7 @@ class Ctx {
         if (ph.peeked) reject('invalid', 'Already looked');
         const target = this.other(me, a.targetId);
         const card = this.ownCard(target, a.slot);
-        this.log(`${me.name} looked at ${target.name}'s slot ${a.slot + 1}`);
+        this.log(`${me.name} looked at ${target.name}'s slot ${a.slot + 1}`, { flash: [{ spot: slotAt(target.id, a.slot) }] });
         this.private(me.id, `${target.name}'s slot ${a.slot + 1} is ${cardLabel(card)}`, { playerId: target.id, slot: a.slot, card });
         if (ph.ability === 'look_swap' && me.slots.some(Boolean)) {
           ph.peeked = { playerId: target.id, slot: a.slot };
@@ -229,7 +248,9 @@ class Ctx {
     if (card.rank === top.rank) { // R13
       owner.slots[slot] = null;
       s.discard.push(card);
-      this.log(`${snapper.name} snapped ${whose} slot ${slot + 1} (${cardLabel(card)})!`);
+      this.log(`${snapper.name} snapped ${whose} slot ${slot + 1} (${cardLabel(card)})!`, {
+        moves: [{ from: slotAt(owner.id, slot), to: DISCARD, card }],
+      });
       if (owner.id !== snapper.id && snapper.slots.some(Boolean)) {
         s.phase = { kind: 'give', snapperId: snapper.id, targetId: owner.id, slot };
         s.deadline = this.now + s.timings.choiceMs;
@@ -240,7 +261,10 @@ class Ctx {
 
     // R15: wrong snap — card is revealed, returned, and the snapper takes a penalty card.
     const penalty = this.draw();
-    this.log(`${snapper.name} tried to snap ${whose} slot ${slot + 1} but it was ${cardLabel(card)} — penalty card!`);
+    this.log(`${snapper.name} tried to snap ${whose} slot ${slot + 1} but it was ${cardLabel(card)} — penalty card!`, {
+      flash: [{ spot: slotAt(owner.id, slot), card }], // R15: the card is shown to everyone
+      moves: penalty ? [{ from: STOCK, to: slotAt(snapper.id, snapper.slots.length) }] : [],
+    });
     if (!penalty) return this.endRound('deck_exhausted'); // R23
     snapper.slots.push(penalty); // R18: appended, never fills a gap
   }
@@ -260,12 +284,12 @@ class Ctx {
         const card = this.draw();
         if (!card) return this.endRound('deck_exhausted');
         s.discard.push(card);
-        this.log(`${cur.name} ran out of time — drew and discarded ${cardLabel(card)}`);
+        this.log(`${cur.name} ran out of time — drew and discarded ${cardLabel(card)}`, { moves: [{ from: STOCK, to: DISCARD, card }] });
         return this.openSnapWindow();
       }
       case 'drawn':
         s.discard.push(ph.card);
-        this.log(`${cur.name} ran out of time — discarded ${cardLabel(ph.card)}`);
+        this.log(`${cur.name} ran out of time — discarded ${cardLabel(ph.card)}`, { moves: [{ from: held(cur.id), to: DISCARD, card: ph.card }] });
         return this.openSnapWindow();
       case 'ability':
         this.log(`${cur.name} ran out of time — ability skipped`);
@@ -389,7 +413,12 @@ class Ctx {
     const theirs = this.ownCard(target, slot);
     me.slots[mySlot] = theirs;
     target.slots[slot] = mine;
-    this.log(`${me.name} swapped their slot ${mySlot + 1} with ${target.name}'s slot ${slot + 1}`); // R11
+    this.log(`${me.name} swapped their slot ${mySlot + 1} with ${target.name}'s slot ${slot + 1}`, { // R11
+      moves: [
+        { from: slotAt(me.id, mySlot), to: slotAt(target.id, slot) },
+        { from: slotAt(target.id, slot), to: slotAt(me.id, mySlot) },
+      ],
+    });
   }
 
   /** R9: whether the discarded ability has any legal target. */
@@ -424,8 +453,8 @@ class Ctx {
     return p.slots[slot] ?? reject('invalid', 'That slot is empty');
   }
 
-  private log(text: string): void {
-    this.events.push({ text });
+  private log(text: string, motion?: Motion): void {
+    this.events.push(motion ? { text, motion } : { text });
   }
 
   private private(to: string, text: string, reveal?: GameEvent['reveal']): void {

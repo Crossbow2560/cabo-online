@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cardLabel, type Ack, type Card, type ClientAction, type PlayerView, type RoomState } from '@cabo/engine';
 import type { CaboSocket, LogLine } from './App';
 import { ActionBar, type Pick } from './components/ActionBar';
@@ -10,6 +10,7 @@ import { PlayingCard } from './components/PlayingCard';
 import { RoundResults } from './components/RoundResults';
 import { Seat } from './components/Seat';
 import { Title } from './components/Title';
+import { playDeal, playMotions } from './lib/motion';
 import { useNow } from './lib/useNow';
 
 type Call = <T>(fn: (ack: (r: Ack<T>) => void) => void) => Promise<Ack<T>>;
@@ -43,6 +44,19 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? 'a player who left';
 
   useEffect(() => setPick(null), [view.phase, view.currentPlayerId, view.abilityPeeked]);
+
+  // Card animations: play queued moves once the new state is on screen; deal at round start.
+  const dealtRound = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (view.phase === 'peek' && view.version === 0 && dealtRound.current !== room.roundNo) {
+      dealtRound.current = room.roundNo;
+      const d = view.players.findIndex((p) => p.id === view.dealerId);
+      const order = view.players.map((_, i) => view.players[(d + 1 + i) % view.players.length].id);
+      playDeal(order, Math.max(...view.players.map((p) => p.slots.length)));
+      return;
+    }
+    playMotions();
+  }, [view.version, view.phase, room.roundNo]);
 
   // Private peek results flip the card face-up in place for a few seconds.
   useEffect(() => {
@@ -184,17 +198,17 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
           <div className="piles">
             <div className="pile">
               <div className="pile__stack">
-                <PlayingCard card={null} size="md" />
+                <PlayingCard card={null} size="md" spot="stock" />
               </div>
               <span className="pile__label">Stock · {view.stockCount}</span>
             </div>
             <div className="pile">
-              <PlayingCard card={view.discardTop} gap={!view.discardTop} size="md" />
+              <PlayingCard card={view.discardTop} gap={!view.discardTop} size="md" spot="discard" />
               <span className="pile__label">Discard</span>
             </div>
             {view.drawnCard && (
               <div className="pile pile--drawn">
-                <PlayingCard card={view.drawnCard} size="md" />
+                <PlayingCard card={view.drawnCard} size="md" spot={`held:${me}`} />
                 <span className="pile__label">You drew</span>
               </div>
             )}
@@ -203,7 +217,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
 
         {mePlayer && (
           <div className={`mine ${myTurnNow ? 'mine--turn' : ''}`}>
-            <div className="mine__hand">
+            <div className="mine__hand" data-seat={me}>
               <div className="seat__plate seat__plate--me">
                 <span className="seat__name">{mePlayer.name} (you)</span>
                 {view.dealerId === me && <span className="chip-d" title="Dealer">D</span>}
@@ -216,6 +230,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
                 onCard={(slot) => onCard(me, slot)}
                 showLabels
                 ownerName="Your"
+                ownerId={me}
               />
             </div>
             <ActionBar view={view} pick={pick} setPick={setPick} act={act} snapLeft={view.phase === 'snap' ? frac : 0} />

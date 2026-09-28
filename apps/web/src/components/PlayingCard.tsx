@@ -16,6 +16,7 @@ export function PlayingCard({
   label,
   onClick,
   title,
+  spot,
 }: {
   card: Card | null;
   gap?: boolean;
@@ -27,6 +28,8 @@ export function PlayingCard({
   label?: string;
   onClick?: () => void;
   title?: string;
+  /** Animation anchor, e.g. "slot:<playerId>:2", "stock", "discard", "held:<playerId>". */
+  spot?: string;
 }) {
   const cls = [
     'pcard',
@@ -46,11 +49,11 @@ export function PlayingCard({
   return (
     <div className="pcard-wrap">
       {onClick && !gap ? (
-        <button type="button" className={cls} onClick={onClick} disabled={!selectable} aria-label={title ?? aria} title={title}>
+        <button type="button" className={cls} onClick={onClick} disabled={!selectable} aria-label={title ?? aria} title={title} data-spot={spot}>
           {content}
         </button>
       ) : (
-        <div className={cls} aria-label={aria} role="img">
+        <div className={cls} aria-label={aria} role="img" data-spot={spot}>
           {content}
         </div>
       )}

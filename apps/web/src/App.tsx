@@ -4,6 +4,7 @@ import type { Ack, ClientToServer, GameEvent, PlayerView, RoomState, ServerToCli
 import { DesertBackdrop } from './components/DesertBackdrop';
 import { RulesModal } from './components/RulesModal';
 import { Game } from './Game';
+import { captureMotion } from './lib/motion';
 import { Landing } from './screens/Landing';
 import { Nickname } from './screens/Nickname';
 import { Lobby } from './screens/Lobby';
@@ -51,16 +52,33 @@ export function App() {
   useEffect(() => {
     const token = readToken();
     if (!token) return setLoading(false);
-    fetch('/api/session', { headers: { authorization: `Bearer ${token}` } })
-      .then(async (r) => {
-        if (r.ok) {
-          const s = await r.json();
-          setSession({ sessionId: s.sessionId, nickname: s.nickname, token });
-          if (s.roomCode) setScreen('play'); // already seated: straight back to the table
-        } else writeToken(null);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    let timer: number | undefined;
+    // Only a 401 means the token is really gone. A 5xx / network error (e.g. the server restarting
+    // during a deploy) must not wipe the player's identity: keep the token and retry.
+    const check = (attempt: number) => {
+      fetch('/api/session', { headers: { authorization: `Bearer ${token}` } })
+        .then(async (r) => {
+          if (cancelled) return;
+          if (r.ok) {
+            const s = await r.json();
+            setSession({ sessionId: s.sessionId, nickname: s.nickname, token });
+            if (s.roomCode) setScreen('play'); // already seated: straight back to the table
+            setLoading(false);
+          } else if (r.status === 401) {
+            writeToken(null);
+            setLoading(false);
+          } else throw new Error(`HTTP ${r.status}`);
+        })
+        .catch(() => {
+          if (!cancelled) timer = window.setTimeout(() => check(attempt + 1), Math.min(8000, 1000 * 2 ** attempt));
+        });
+    };
+    check(0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   const signOut = () => {
@@ -70,7 +88,7 @@ export function App() {
   };
 
   let content: React.ReactNode;
-  if (loading) content = <main className="screen" />;
+  if (loading) content = <main className="screen"><p className="tagline">Saddling up…</p></main>;
   else if (screen === 'landing' || (screen === 'play' && !session)) {
     content = <Landing onPlay={() => setScreen(session ? 'play' : 'nickname')} onRules={() => setRulesOpen(true)} />;
   } else if (screen === 'nickname' || !session) {
@@ -113,7 +131,9 @@ function Connected({ session, onSignOut, onRules }: { session: Session; onSignOu
     });
     s.on('disconnect', () => setConnected(false));
     s.on('connect_error', (e) => {
-      if (e.message === 'unauthorized') onSignOut();
+      if (e.message === 'unauthorized') return onSignOut();
+      // Server-side rejections don't auto-reconnect; anything but "unauthorized" is transient.
+      if (!s.active) window.setTimeout(() => s.connect(), 2000);
     });
     s.on('room:state', (r) => {
       setRoom(r);
@@ -121,7 +141,10 @@ function Connected({ session, onSignOut, onRules }: { session: Session; onSignOu
       setSynced(true);
     });
     s.on('game:view', setView);
-    s.on('game:log', (line) => setLog((l) => [...l.slice(-199), { ...line, id: ++logSeq, rx: Date.now() }]));
+    s.on('game:log', (line) => {
+      if (line.motion) captureMotion(line.motion); // measure where cards start before the view updates
+      setLog((l) => [...l.slice(-199), { ...line, id: ++logSeq, rx: Date.now() }]);
+    });
     s.on('session:replaced', () => {
       setReplaced(true);
       s.disconnect();
