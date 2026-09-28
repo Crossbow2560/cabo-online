@@ -42,6 +42,8 @@ export interface ServerOptions {
   /** R28: max snaps per socket per second. */
   snapRateLimit?: number;
   webDist?: string;
+  /** Public address players use, e.g. https://cabo.nishit-db.com — used for invite links. */
+  publicUrl?: string | null;
 }
 
 export async function createCaboServer(opts: ServerOptions) {
@@ -74,6 +76,12 @@ export async function createCaboServer(opts: ServerOptions) {
     const id = randomUUID();
     await store.createSession(id, hashToken(token), nickname);
     res.json({ sessionId: id, nickname, token });
+  });
+
+  // Runtime config for the client (read at startup, so one build works on any domain).
+  const publicUrl = opts.publicUrl?.replace(/\/+$/, '') || null;
+  app.get('/api/config', (_req, res) => {
+    res.json({ publicUrl });
   });
 
   app.get('/api/session', async (req, res) => {

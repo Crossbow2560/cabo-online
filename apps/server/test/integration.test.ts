@@ -92,6 +92,15 @@ async function startAndReady(bots: Bot[]) {
 }
 
 describe('server', () => {
+  it('/api/config reports PUBLIC_URL (trailing slash trimmed), or null when unset', async () => {
+    const plain = await start();
+    expect(await (await fetch(`${plain.url}/api/config`)).json()).toEqual({ publicUrl: null });
+    const server = await createCaboServer({ store: new MemoryStore(), publicUrl: 'https://cabo.nishit-db.com/' });
+    servers.push(server);
+    const port = await server.listen(0);
+    expect(await (await fetch(`http://localhost:${port}/api/config`)).json()).toEqual({ publicUrl: 'https://cabo.nishit-db.com' });
+  });
+
   it('rejects sockets without a valid session', async () => {
     const { url } = await start();
     const s = connect(url, { auth: { token: 'nope' }, transports: ['websocket'], forceNew: true });

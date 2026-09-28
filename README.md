@@ -42,9 +42,13 @@ One container serves the game server and the built web client on port 3101.
 
 ```bash
 # on your server, in the repo
-cp apps/server/.env.example apps/server/.env   # put your Supabase DATABASE_URL in it
+cp apps/server/.env.example apps/server/.env   # set DATABASE_URL and PUBLIC_URL
 docker compose up -d --build
 ```
+
+Environment (in `apps/server/.env`): `DATABASE_URL` — Supabase session-pooler string (unset = in-memory);
+`PUBLIC_URL` — the address players use, e.g. `https://cabo.nishit-db.com`, used for invite links (unset = whatever
+address the page was opened on); `PORT` — defaults to 3101.
 
 Put it behind your usual reverse proxy for https (e.g. Caddy: `cabo.example.com { reverse_proxy localhost:3101 }`).
 WebSockets pass through Caddy/nginx fine; with nginx, forward the `Upgrade`/`Connection` headers.
@@ -61,7 +65,7 @@ One-time setup:
    runner* (Linux) and follow the commands. Install it as a service (`sudo ./svc.sh install && sudo ./svc.sh start`)
    and put the runner's user in the `docker` group (`sudo usermod -aG docker <user>`, then restart the service).
 2. **Env file:** after the first deploy run (it will stop at "apps/server/.env is missing"), create
-   `apps/server/.env` with `DATABASE_URL=<Supabase session-pooler string>` inside the runner's checkout, e.g.
+   `apps/server/.env` with `DATABASE_URL=<Supabase session-pooler string>` and `PUBLIC_URL=https://cabo.nishit-db.com` inside the runner's checkout, e.g.
    `~/actions-runner/_work/cabo-online/cabo-online/apps/server/.env` (`chmod 600`), then re-run the workflow.
    The workflow checks out with `clean: false`, so the file survives later deploys. Re-create it if you
    ever reinstall the runner.

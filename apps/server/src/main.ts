@@ -14,7 +14,18 @@ const url = process.env.DATABASE_URL;
 const store: Store = url ? new PgStore(url) : new MemoryStore();
 if (!url) console.warn('DATABASE_URL not set — using in-memory storage (nothing survives a restart)');
 
-const server = await createCaboServer({ store, webDist: path.resolve(here, '../../web/dist') });
+let publicUrl = process.env.PUBLIC_URL?.trim() || null;
+if (publicUrl) {
+  try {
+    publicUrl = new URL(publicUrl).origin;
+    console.log(`Public URL: ${publicUrl}`);
+  } catch {
+    console.warn(`PUBLIC_URL "${publicUrl}" is not a valid URL — ignoring it`);
+    publicUrl = null;
+  }
+}
+
+const server = await createCaboServer({ store, publicUrl, webDist: path.resolve(here, '../../web/dist') });
 const port = await server.listen(Number(process.env.PORT ?? 3101));
 console.log(`Cabo server listening on :${port}`);
 

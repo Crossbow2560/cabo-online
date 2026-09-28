@@ -2,6 +2,7 @@ import { MAX_PLAYERS, MIN_PLAYERS, type RoomState } from '@cabo/engine';
 import { CopyField } from '../components/CopyField';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
+import { usePublicUrl } from '../lib/config';
 import { formatCountdown, useNow } from '../lib/useNow';
 
 const MIN_ROWS = 3;
@@ -14,7 +15,7 @@ export function Lobby({ room, me, onStart, onLeave }: {
 }) {
   const now = useNow(1000);
   const isHost = room.hostId === me;
-  const link = `${location.origin}/?room=${room.code}`;
+  const link = `${usePublicUrl()}/?room=${room.code}`;
   const enough = room.players.length >= MIN_PLAYERS;
   const emptyRows = Math.max(0, MIN_ROWS - room.players.length);
 
