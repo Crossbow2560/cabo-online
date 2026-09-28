@@ -111,12 +111,14 @@ export async function createCaboServer(opts: ServerOptions) {
     const session = socket.data.session;
     const sid = session.id;
 
-    // R27: one live socket per session — a new tab replaces the old one.
-    for (const old of await io.in(`s:${sid}`).fetchSockets()) {
+    // R27: one live socket per session — a new tab replaces the old one. Join first, so the old
+    // socket's disconnect handler still sees this one and doesn't mark the player offline.
+    const olds = await io.in(`s:${sid}`).fetchSockets();
+    socket.join(`s:${sid}`);
+    for (const old of olds) {
       old.emit('session:replaced');
       old.disconnect(true);
     }
-    socket.join(`s:${sid}`);
 
     const existing = rooms.roomOf(sid);
     if (existing) {

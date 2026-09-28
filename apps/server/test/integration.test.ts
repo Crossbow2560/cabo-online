@@ -198,6 +198,17 @@ describe('server', () => {
       expect(states.at(-1)!.hostId).toBe(bots[1].id);
     });
 
+    it('a second tab replacing the first does not mark the player offline', async () => {
+      const { url, server } = await start(new MemoryStore(), KICK);
+      const { bots, code } = await lobby(url, 2);
+      await bot(url, '', { id: bots[1].id, token: bots[1].token }); // replaces bots[1]'s socket
+      await sleep(KICK + 150);
+      const room = server.rooms.rooms.get(code)!;
+      expect(room.rec.players).toHaveLength(2);
+      expect(room.connected.has(bots[1].id)).toBe(true);
+      expect(room.offlineSince.has(bots[1].id)).toBe(false);
+    });
+
     it('reconnecting before the deadline cancels the kick', async () => {
       const { url, server } = await start(new MemoryStore(), KICK);
       const { bots, code } = await lobby(url, 2);

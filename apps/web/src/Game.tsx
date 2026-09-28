@@ -148,7 +148,9 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         {view.deadline && view.phase !== 'ended' && <TimerRing frac={frac} seconds={Math.ceil(left / 1000)} />}
         <div className="tbar__spacer" />
         <button className="btn btn--light btn--sm tbar__icon" onClick={onRules} aria-label="How to play">?</button>
-        <button className="btn btn--primary btn--sm" onClick={() => setConfirmLeave(true)}>Leave game</button>
+        <button className="btn btn--primary btn--sm" onClick={() => setConfirmLeave(true)} aria-label="Leave game">
+          Leave<span className="hide-phone"> game</span>
+        </button>
       </header>
 
       <section className={`table ${view.phase === 'snap' ? 'table--snap' : ''}`} aria-label="Card table">
