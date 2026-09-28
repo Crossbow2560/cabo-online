@@ -35,7 +35,8 @@ export interface RoomState {
 export type Ack<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
 
 export interface ServerToClient {
-  'room:state': (room: RoomState) => void;
+  /** null = you're not seated in any room (sent on every connect, and when you're removed). */
+  'room:state': (room: RoomState | null) => void;
   'game:view': (view: PlayerView | null) => void;
   'game:log': (event: GameEvent & { at: number }) => void;
   'session:replaced': () => void;

@@ -209,6 +209,36 @@ describe('server', () => {
       expect(room.offlineSince.has(bots[1].id)).toBe(false);
     });
 
+    it('a kicked player who reconnects is told they are in no room (no stale table)', async () => {
+      const { url } = await start(new MemoryStore(), KICK);
+      const { bots } = await lobby(url, 3);
+      await startAndReady(bots);
+      bots[2].socket.disconnect();
+      await bots[0].until((v) => v.players.length === 2, KICK + 1000);
+      const again = connect(url, { auth: { token: bots[2].token }, transports: ['websocket'], forceNew: true });
+      sockets.push(again);
+      const [state, view] = await Promise.all([
+        new Promise((res) => again.once('room:state', res)),
+        new Promise((res) => again.once('game:view', res)),
+      ]);
+      expect(state).toBeNull();
+      expect(view).toBeNull();
+    });
+
+    it('after leaving, a player stops receiving that room\'s updates', async () => {
+      const { url } = await start();
+      const { bots } = await lobby(url, 3);
+      const seen: unknown[] = [];
+      bots[2].socket.on('room:state', (r) => seen.push(r));
+      expect((await bots[2].emit('room:leave')).ok).toBe(true);
+      await sleep(100);
+      expect(seen.at(-1)).toBeNull();
+      const before = seen.length;
+      await bots[1].emit('room:leave'); // another room change
+      await sleep(150);
+      expect(seen.length).toBe(before);
+    });
+
     it('reconnecting before the deadline cancels the kick', async () => {
       const { url, server } = await start(new MemoryStore(), KICK);
       const { bots, code } = await lobby(url, 2);

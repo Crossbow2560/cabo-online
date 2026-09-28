@@ -61,6 +61,10 @@ export async function createCaboServer(opts: ServerOptions) {
       roomState: (code, state) => io.to(`r:${code}`).emit('room:state', state),
       view: (sid, view) => io.to(`s:${sid}`).emit('game:view', view),
       log: (target, event) => io.to(target).emit('game:log', { ...event, at: Date.now() }),
+      detach: (sid, code) => {
+        io.in(`s:${sid}`).socketsLeave(`r:${code}`);
+        io.to(`s:${sid}`).emit('room:state', null);
+      },
     },
     opts.timings,
     opts.kickAfterMs,
@@ -120,11 +124,15 @@ export async function createCaboServer(opts: ServerOptions) {
       old.disconnect(true);
     }
 
+    // Always tell a (re)connecting client where it stands, so it never shows a stale table.
     const existing = rooms.roomOf(sid);
     if (existing) {
       socket.join(`r:${existing.rec.code}`);
-      rooms.setConnected(sid, true);
+      rooms.setConnected(sid, true); // broadcasts room:state, including to this socket
       rooms.sendView(existing, sid);
+    } else {
+      socket.emit('room:state', null);
+      socket.emit('game:view', null);
     }
 
     // Wraps a handler: payload (if any) first, ack callback last; GameErrors become { ok: false }.

@@ -951,3 +951,9 @@ button.pcard:disabled { opacity: 1; }
   .posse__title, .posse__head .btn { white-space: nowrap; }
   .posse__head .btn { font-size: 12px; padding: 5px 10px; }
 }
+
+/* labels under cards must clear the cards' drop shadows */
+.pcard-wrap { gap: 5px; }
+.pcard__label { line-height: 1; }
+.pile { gap: 6px; }
+.pile__stack { margin: 0 9px 9px 0; } /* room for the 9px stacked-deck shadow */

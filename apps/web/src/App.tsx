@@ -103,15 +103,23 @@ function Connected({ session, onSignOut, onRules }: { session: Session; onSignOu
   const [log, setLog] = useState<LogLine[]>([]);
   const [error, setError] = useState('');
   const [replaced, setReplaced] = useState(false);
+  const [synced, setSynced] = useState(false);
 
   useEffect(() => {
     const s: CaboSocket = io({ auth: { token: session.token } });
-    s.on('connect', () => setConnected(true));
+    s.on('connect', () => {
+      setSynced(false); // wait for the server to say which room (if any) we're in
+      setConnected(true);
+    });
     s.on('disconnect', () => setConnected(false));
     s.on('connect_error', (e) => {
       if (e.message === 'unauthorized') onSignOut();
     });
-    s.on('room:state', setRoom);
+    s.on('room:state', (r) => {
+      setRoom(r);
+      if (!r) setView(null);
+      setSynced(true);
+    });
     s.on('game:view', setView);
     s.on('game:log', (line) => setLog((l) => [...l.slice(-199), { ...line, id: ++logSeq, rx: Date.now() }]));
     s.on('session:replaced', () => {
@@ -144,7 +152,7 @@ function Connected({ session, onSignOut, onRules }: { session: Session; onSignOu
       </main>
     );
   }
-  if (!socket || !connected) {
+  if (!socket || !connected || !synced) {
     return (
       <main className="screen">
         <p className="tagline">Saddling up…</p>

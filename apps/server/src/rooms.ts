@@ -20,6 +20,8 @@ export interface Outbox {
   view(sessionId: string, view: ReturnType<typeof redactFor> | null): void;
   /** target is a socket.io room: `r:<code>` (public) or `s:<sessionId>` (private). */
   log(target: string, event: GameEvent): void;
+  /** A player left or was kicked: unsubscribe their sockets from the room and tell them. */
+  detach(sessionId: string, code: string): void;
 }
 
 export class GameError extends Error {}
@@ -165,6 +167,7 @@ export class RoomManager {
     this.clearKick(room, sessionId);
     this.bySession.delete(sessionId);
     this.out.view(sessionId, null);
+    this.out.detach(sessionId, room.rec.code);
     if (room.rec.players.length === 0) {
       room.rec.status = 'closed';
       if (room.timer) clearTimeout(room.timer);
