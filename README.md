@@ -60,8 +60,11 @@ One-time setup:
 1. **Server:** install Docker, then add a runner: repo → *Settings → Actions → Runners → New self-hosted
    runner* (Linux) and follow the commands. Install it as a service (`sudo ./svc.sh install && sudo ./svc.sh start`)
    and put the runner's user in the `docker` group (`sudo usermod -aG docker <user>`, then restart the service).
-2. **Secret:** repo → *Settings → Secrets and variables → Actions* → new secret `DATABASE_URL`
-   (the Supabase session-pooler string). You can scope it to a `production` environment.
+2. **Env file:** after the first deploy run (it will stop at "apps/server/.env is missing"), create
+   `apps/server/.env` with `DATABASE_URL=<Supabase session-pooler string>` inside the runner's checkout, e.g.
+   `~/actions-runner/_work/cabo-online/cabo-online/apps/server/.env` (`chmod 600`), then re-run the workflow.
+   The workflow checks out with `clean: false`, so the file survives later deploys. Re-create it if you
+   ever reinstall the runner.
 3. Push to `main` (or use *Actions → Test & deploy → Run workflow*).
 
 Keep the self-hosted runner on push-only workflows. If the repo is public, set *Settings → Actions →

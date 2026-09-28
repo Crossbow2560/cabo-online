@@ -29,15 +29,16 @@ jobs:
     # a self-hosted runner installed on your server (with Docker)
     runs-on: [self-hosted, linux]
     environment: production
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
+      # clean: false keeps untracked files, so apps/server/.env (DATABASE_URL=...) that you
+      # created once in the runner's workspace survives every deploy.
       - uses: actions/checkout@v4
+        with:
+          clean: false
 
-      - name: Write server env from secrets
+      - name: Check server env file
         run: |
-          umask 077
-          printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > apps/server/.env
+          test -r apps/server/.env || { echo "::error::apps/server/.env is missing in $GITHUB_WORKSPACE — create it with DATABASE_URL=..."; exit 1; }
 
       - name: Build and (re)start the container
         run: docker compose -p cabo up -d --build --remove-orphans
