@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "server", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "-w", "@cabo/server"], "port": 3101 },
+    { "name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "-w", "@cabo/web"], "port": 5173 }
+  ]
+}

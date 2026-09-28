@@ -1,0 +1,11 @@
+{
+  "name": "cabo",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test": "npm run test -w @cabo/engine && npm run test -w @cabo/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:server": "npm run dev -w @cabo/server",
+    "dev:web": "npm run dev -w @cabo/web"
+  }
+}

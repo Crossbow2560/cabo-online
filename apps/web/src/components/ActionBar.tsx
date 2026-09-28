@@ -1,0 +1,85 @@
+import type { ClientAction, PlayerView } from '@cabo/engine';
+
+export type Pick = null | 'take_discard' | { blindMine: number };
+
+/** Context buttons for the current phase (logic carried over from the interim Controls). */
+export function ActionBar({ view, pick, setPick, act, snapLeft }: {
+  view: PlayerView;
+  pick: Pick;
+  setPick: (p: Pick) => void;
+  act: (a: ClientAction) => void;
+  /** 0..1 of the snap window remaining. */
+  snapLeft: number;
+}) {
+  const me = view.you;
+  const myTurn = view.currentPlayerId === me;
+  const mePlayer = view.players.find((p) => p.id === me)!;
+  const hasCards = mePlayer.slots.some(Boolean);
+
+  if (view.phase === 'snap') {
+    return (
+      <div className="actions">
+        <div className="snap-banner" role="status">
+          <span className="snap-banner__word">SNAP!</span>
+          <span className="snap-banner__hint">Tap a card that matches the discard</span>
+          <span className="snap-banner__bar" style={{ transform: `scaleX(${snapLeft})` }} />
+        </div>
+      </div>
+    );
+  }
+  if (view.phase === 'peek') {
+    return (
+      <div className="actions">
+        {mePlayer.ready ? (
+          <span className="actions__note">Waiting for the others…</span>
+        ) : (
+          <button className="btn btn--primary" onClick={() => act({ type: 'READY' })}>
+            I've memorised them
+          </button>
+        )}
+      </div>
+    );
+  }
+  if (view.phase === 'give' && view.give?.snapperId === me) {
+    return (
+      <div className="actions">
+        <button className="btn btn--light" onClick={() => act({ type: 'SKIP' })}>Don't give a card</button>
+      </div>
+    );
+  }
+  if (!myTurn || view.phase === 'ended') return <div className="actions" />;
+
+  switch (view.phase) {
+    case 'choose':
+      return (
+        <div className="actions">
+          <button className="btn btn--primary" onClick={() => act({ type: 'DRAW_STOCK' })}>Draw</button>
+          <button
+            className={`btn ${pick === 'take_discard' ? 'btn--cream' : 'btn--light'}`}
+            onClick={() => setPick(pick === 'take_discard' ? null : 'take_discard')}
+            disabled={!hasCards}
+          >
+            {pick === 'take_discard' ? 'Cancel' : 'Take discard'}
+          </button>
+          <button className="btn btn--light" onClick={() => act({ type: 'CALL_CABO' })} disabled={!!view.caboCalledBy}>
+            Call CABO
+          </button>
+        </div>
+      );
+    case 'drawn':
+      return (
+        <div className="actions">
+          <button className="btn btn--primary" onClick={() => act({ type: 'DISCARD_DRAWN' })}>Discard it</button>
+          {hasCards && <span className="actions__note">…or tap one of your cards to keep it</span>}
+        </div>
+      );
+    case 'ability':
+      return (
+        <div className="actions">
+          <button className="btn btn--light" onClick={() => act({ type: 'SKIP' })}>Skip ability</button>
+        </div>
+      );
+    default:
+      return <div className="actions" />;
+  }
+}
