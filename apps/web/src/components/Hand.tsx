@@ -35,6 +35,7 @@ export function Hand({ slots, size, state, onCard, showLabels = false, ownerName
               onClick={() => onCard(i)}
               title={`${ownerName} — card #${i + 1}`}
               spot={`slot:${ownerId}:${i}`}
+              flipDelay={i * 70}
             />
           </div>
         );

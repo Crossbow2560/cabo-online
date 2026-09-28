@@ -551,6 +551,31 @@ describe('motion events (for client animations)', () => {
     ]);
   });
 
+  it('peeks say who looked at which card, never what it is', () => {
+    let s = playing({ hands: HANDS, stock: ['10S'] });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p1' });
+    s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p1' });
+    const [m] = motionOf(run(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 2 }));
+    expect(m).toEqual({ peek: [{ spot: { at: 'slot', playerId: 'p0', slot: 2 }, by: 'p1' }] });
+    expect(JSON.stringify(m)).not.toContain('"rank"');
+  });
+
+  it('reshuffle moves cards discard → stock before the draw that needed it', () => {
+    const s = playing({ hands: HANDS, stock: [], discard: ['2D', '3D', '4D'] });
+    const ms = motionOf(run(s, { type: 'DRAW_STOCK', playerId: 'p1' }));
+    expect(ms[0]).toEqual({ moves: [{ from: { at: 'discard' }, to: { at: 'stock' } }, { from: { at: 'discard' }, to: { at: 'stock' } }] });
+    expect(ms[1]!.moves![0]).toEqual({ from: { at: 'stock' }, to: { at: 'held', playerId: 'p1' } });
+  });
+
+  it('a departing player’s cards go back to the stock', () => {
+    const s = playing({ hands: [HANDS[0], HANDS[1], ['JC', '-', 'KH']] });
+    const [m] = motionOf(run(s, { type: 'REMOVE_PLAYER', playerId: 'p2' }));
+    expect(m!.moves).toEqual([
+      { from: { at: 'slot', playerId: 'p2', slot: 0 }, to: { at: 'stock' } },
+      { from: { at: 'slot', playerId: 'p2', slot: 2 }, to: { at: 'stock' } },
+    ]);
+  });
+
   it('wrong snap flashes the revealed card and deals the penalty into the new slot', () => {
     let s = playing({ hands: HANDS, stock: ['2D', '5D'] });
     s = ok(s, { type: 'DRAW_STOCK', playerId: 'p1' });
@@ -616,6 +641,7 @@ describe('R24: redaction never leaks hidden cards', () => {
               if (mv.card) expect(mv.from.at === 'discard' || mv.to.at === 'discard').toBe(true);
             }
             for (const f of e.motion?.flash ?? []) if (f.card) expect(e.text).toContain('tried to snap');
+            for (const pk of e.motion?.peek ?? []) expect(pk).not.toHaveProperty('card');
           }
           s = r.state;
         }

@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react';
 import type { Card } from '@cabo/engine';
 import { Icon } from './Icon';
 
@@ -17,6 +18,7 @@ export function PlayingCard({
   onClick,
   title,
   spot,
+  flipDelay = 0,
 }: {
   card: Card | null;
   gap?: boolean;
@@ -30,7 +32,27 @@ export function PlayingCard({
   title?: string;
   /** Animation anchor, e.g. "slot:<playerId>:2", "stock", "discard", "held:<playerId>". */
   spot?: string;
+  /** Stagger (ms) when many cards turn over at once, e.g. the round-end reveal. */
+  flipDelay?: number;
 }) {
+  // Turn the card over (rather than swapping its face instantly) when it goes face-up <-> face-down in place.
+  const ref = useRef<HTMLElement>(null);
+  const wasFace = useRef<boolean | null>(null);
+  const face = !gap && !!card;
+  useLayoutEffect(() => {
+    const prev = wasFace.current;
+    wasFace.current = face;
+    const el = ref.current;
+    if (prev === null || prev === face || gap || !el || document.hidden) return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    el.animate([{ transform: 'rotateY(90deg)' }, { transform: 'rotateY(0deg)' }], {
+      duration: 320,
+      delay: flipDelay,
+      easing: 'ease-out',
+      fill: 'backwards',
+    });
+  }, [face, gap, flipDelay]);
+
   const cls = [
     'pcard',
     `pcard--${size}`,
@@ -49,11 +71,11 @@ export function PlayingCard({
   return (
     <div className="pcard-wrap">
       {onClick && !gap ? (
-        <button type="button" className={cls} onClick={onClick} disabled={!selectable} aria-label={title ?? aria} title={title} data-spot={spot}>
+        <button type="button" ref={ref as React.RefObject<HTMLButtonElement>} className={cls} onClick={onClick} disabled={!selectable} aria-label={title ?? aria} title={title} data-spot={spot}>
           {content}
         </button>
       ) : (
-        <div className={cls} aria-label={aria} role="img" data-spot={spot}>
+        <div ref={ref as React.RefObject<HTMLDivElement>} className={cls} aria-label={aria} role="img" data-spot={spot}>
           {content}
         </div>
       )}

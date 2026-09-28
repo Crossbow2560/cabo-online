@@ -193,7 +193,7 @@ class Ctx {
         const ph = this.expectPhase('ability');
         if (ph.ability !== 'peek_own') reject('invalid', 'Wrong ability');
         const card = this.ownCard(me, a.slot);
-        this.log(`${me.name} looked at their own slot ${a.slot + 1}`, { flash: [{ spot: slotAt(me.id, a.slot) }] });
+        this.log(`${me.name} looked at their own slot ${a.slot + 1}`, { peek: [{ spot: slotAt(me.id, a.slot), by: me.id }] });
         this.private(me.id, `Your slot ${a.slot + 1} is ${cardLabel(card)}`, { playerId: me.id, slot: a.slot, card });
         return this.openSnapWindow();
       }
@@ -203,7 +203,7 @@ class Ctx {
         if (ph.peeked) reject('invalid', 'Already looked');
         const target = this.other(me, a.targetId);
         const card = this.ownCard(target, a.slot);
-        this.log(`${me.name} looked at ${target.name}'s slot ${a.slot + 1}`, { flash: [{ spot: slotAt(target.id, a.slot) }] });
+        this.log(`${me.name} looked at ${target.name}'s slot ${a.slot + 1}`, { peek: [{ spot: slotAt(target.id, a.slot), by: me.id }] });
         this.private(me.id, `${target.name}'s slot ${a.slot + 1} is ${cardLabel(card)}`, { playerId: target.id, slot: a.slot, card });
         if (ph.ability === 'look_swap' && me.slots.some(Boolean)) {
           ph.peeked = { playerId: target.id, slot: a.slot };
@@ -336,7 +336,9 @@ class Ctx {
     if (k < 0) reject('invalid', 'Unknown player');
     const [gone] = s.players.splice(k, 1);
     for (const c of gone.slots) if (c) s.stock.unshift(c);
-    this.log(`${gone.name} ${reason}`);
+    this.log(`${gone.name} ${reason}`, {
+      moves: gone.slots.flatMap((c, i) => (c ? [{ from: slotAt(gone.id, i), to: STOCK }] : [])),
+    });
 
     if (s.players.length < 2) {
       if (s.phase.kind === 'drawn') s.stock.unshift(s.phase.card); // survivor's drawn card isn't lost
@@ -403,7 +405,9 @@ class Ctx {
       s.stock = shuffled;
       s.rng = rng;
       s.discard = [top];
-      this.log('The stockpile ran out — the discard pile was reshuffled');
+      this.log('The stockpile ran out — the discard pile was reshuffled', {
+        moves: Array.from({ length: Math.min(s.stock.length, 6) }, () => ({ from: DISCARD, to: STOCK })),
+      });
     }
     return s.stock.pop() ?? null;
   }

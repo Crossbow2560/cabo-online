@@ -15,7 +15,13 @@ import { useNow } from './lib/useNow';
 
 type Call = <T>(fn: (ack: (r: Ack<T>) => void) => void) => Promise<Ack<T>>;
 
-const REVEAL_MS = 3000;
+
+const ABILITY_BADGE: Record<string, string> = {
+  peek_own: '✦ Peek at yours',
+  peek_other: '✦ Spy',
+  blind_swap: '⇄ Blind swap',
+  look_swap: '✦ Look & swap',
+};
 
 const ABILITY_TEXT: Record<string, string> = {
   peek_own: 'Peek at one of your own cards',
@@ -48,23 +54,29 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   // Card animations: play queued moves once the new state is on screen; deal at round start.
   const dealtRound = useRef<number | null>(null);
   useLayoutEffect(() => {
-    if (view.phase === 'peek' && view.version === 0 && dealtRound.current !== room.roundNo) {
-      dealtRound.current = room.roundNo;
-      const d = view.players.findIndex((p) => p.id === view.dealerId);
-      const order = view.players.map((_, i) => view.players[(d + 1 + i) % view.players.length].id);
-      playDeal(order, Math.max(...view.players.map((p) => p.slots.length)));
-      return;
+    // Animations are decoration: a glitch in them must never take the table down.
+    try {
+      if (view.phase === 'peek' && view.version === 0 && dealtRound.current !== room.roundNo) {
+        dealtRound.current = room.roundNo;
+        const d = view.players.findIndex((p) => p.id === view.dealerId);
+        const order = view.players.map((_, i) => view.players[(d + 1 + i) % view.players.length].id);
+        playDeal(order, Math.max(...view.players.map((p) => p.slots.length)));
+        return;
+      }
+      playMotions(me);
+    } catch (e) {
+      console.error('[motion]', e);
     }
-    playMotions();
   }, [view.version, view.phase, room.roundNo]);
 
-  // Private peek results flip the card face-up in place for a few seconds.
+  // Private peek results: kept so a Black King "look" stays visible while its owner decides to swap.
+  // (The peek itself is animated in lib/motion.ts.)
   useEffect(() => {
     const fresh = log.filter((l) => l.id > seenLog.current);
     if (!fresh.length) return;
     seenLog.current = fresh.at(-1)!.id;
     const add: Record<string, { card: Card; until: number }> = {};
-    for (const l of fresh) if (l.reveal && l.to === me) add[`${l.reveal.playerId}:${l.reveal.slot}`] = { card: l.reveal.card, until: Date.now() + REVEAL_MS };
+    for (const l of fresh) if (l.reveal && l.to === me) add[`${l.reveal.playerId}:${l.reveal.slot}`] = { card: l.reveal.card, until: Date.now() };
     if (Object.keys(add).length) setRevealed((r) => ({ ...r, ...add }));
   }, [log, me]);
 
@@ -127,10 +139,10 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
     const rev = revealed[`${ownerId}:${slot}`];
     // Black King: keep the looked-at card visible while the player decides whether to swap.
     const deciding = myTurn && view.abilityPeeked?.playerId === ownerId && view.abilityPeeked.slot === slot;
-    const live = rev && (rev.until > now || deciding) ? rev.card : null;
+    const live = rev && deciding ? rev.card : null;
     return {
       card: sv?.card ?? live,
-      flipped: !!live && !sv?.card,
+      flipped: false,
       selectable: canTap(ownerId, slot),
       selected:
         (ownerId === me && typeof pick === 'object' && pick !== null && pick.blindMine === slot) ||
@@ -145,6 +157,19 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const span = view.deadline ? view.deadline - deadlineStart.current.start : 0;
   const left = view.deadline ? Math.max(0, view.deadline - now) : 0;
   const frac = span > 0 ? Math.min(1, left / span) : 0;
+
+  // "CABO!" banner when someone calls it (not when rejoining a round where it was already called).
+  const prevCabo = useRef(view.caboCalledBy);
+  const [caboBanner, setCaboBanner] = useState<string | null>(null);
+  useEffect(() => {
+    if (view.caboCalledBy && view.caboCalledBy !== prevCabo.current) {
+      setCaboBanner(view.caboCalledBy);
+      const t = window.setTimeout(() => setCaboBanner(null), 1600);
+      prevCabo.current = view.caboCalledBy;
+      return () => window.clearTimeout(t);
+    }
+    prevCabo.current = view.caboCalledBy;
+  }, [view.caboCalledBy]);
 
   const meIdx = view.players.findIndex((p) => p.id === me);
   // Opponents clockwise from my left: the player after me sits at the left end of the arc.
@@ -168,6 +193,11 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
       </header>
 
       <section className={`table ${view.phase === 'snap' ? 'table--snap' : ''}`} aria-label="Card table">
+        {caboBanner && (
+          <div className="cabo-banner" role="status">
+            CABO!<small>{name(caboBanner)} called it — last round</small>
+          </div>
+        )}
         <div className="seats">
           {opponents.map((p, i) => {
             const mid = (opponents.length - 1) / 2;
@@ -203,6 +233,9 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
               <span className="pile__label">Stock · {view.stockCount}</span>
             </div>
             <div className="pile">
+              {view.phase === 'ability' && view.ability && (
+                <span className="ability-badge" key={view.version}>{ABILITY_BADGE[view.ability]}</span>
+              )}
               <PlayingCard card={view.discardTop} gap={!view.discardTop} size="md" spot="discard" />
               <span className="pile__label">Discard</span>
             </div>

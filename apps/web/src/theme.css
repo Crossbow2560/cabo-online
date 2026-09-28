@@ -978,3 +978,79 @@ button.pcard:disabled { opacity: 1; }
 @media (prefers-reduced-motion: reduce) {
   .pcard[data-flash] { animation: none; outline: 3px solid var(--cream); }
 }
+
+/* ---------- card motion v2: two-sided flyer, peeks, ability & cabo cues ---------- */
+.flyer { position: fixed; z-index: 50; pointer-events: none; transform-origin: 0 0; perspective: 900px; }
+.flyer__inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; }
+.flyer__side { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flyer__side--back { transform: rotateY(180deg); }
+.flyer--peek { z-index: 60; transform-origin: 0 0; }
+.flyer--peek .flyer__side { box-shadow: 0 16px 30px var(--saddle-soft), 0 3px 0 var(--saddle-deep); }
+
+/* Black King: the card you looked at stays lifted while you decide */
+.pcard--selected.pcard--face { transform: translateY(-8px) scale(1.06); }
+
+/* an ability is in play: badge pops over the discard */
+.pile { position: relative; }
+.ability-badge {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--cream);
+  background: var(--saddle);
+  border: 2px solid var(--cream);
+  border-radius: 999px;
+  padding: 3px 10px;
+  box-shadow: 0 3px 0 var(--saddle-deep);
+  z-index: 3;
+  animation: badge-pop 420ms cubic-bezier(.3,1.6,.5,1) both;
+}
+@keyframes badge-pop {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px) scale(0.6); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* CABO! — a stamp on the caller's plate and a quick banner across the table */
+.chip-cabo { animation: stamp 520ms cubic-bezier(.3,1.7,.5,1) both; }
+@keyframes stamp {
+  0% { opacity: 0; transform: scale(2.6) rotate(-14deg); }
+  60% { opacity: 1; transform: scale(0.9) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+.cabo-banner {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  z-index: 7;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  font-family: var(--font-display);
+  font-size: clamp(40px, 9vw, 72px);
+  line-height: 1;
+  color: var(--cream);
+  text-shadow: 0 4px 0 var(--saddle-deep), 3px 0 0 var(--saddle), -3px 0 0 var(--saddle), 0 -3px 0 var(--saddle);
+  pointer-events: none;
+  animation: cabo-banner 1.6s ease-in-out both;
+}
+.cabo-banner small { font-family: var(--font-body); font-weight: 800; font-size: 14px; text-shadow: 0 1px 0 var(--saddle-deep); }
+@keyframes cabo-banner {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(2) rotate(-8deg); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(0.95) rotate(2deg); }
+  26% { transform: translate(-50%, -50%) scale(1) rotate(0); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ability-badge, .chip-cabo { animation: none; }
+  .cabo-banner { animation: cabo-banner-fade 1.6s linear both; }
+  @keyframes cabo-banner-fade { 0%, 100% { opacity: 0; transform: translate(-50%, -50%); } 10%, 85% { opacity: 1; transform: translate(-50%, -50%); } }
+  .pcard--selected.pcard--face { transform: none; }
+}

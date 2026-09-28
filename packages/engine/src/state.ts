@@ -98,8 +98,10 @@ export type Spot =
  */
 export interface Motion {
   moves?: { from: Spot; to: Spot; card?: Card }[];
-  /** Cards to call attention to (someone peeked at it; a wrong snap reveals `card`). */
+  /** A wrong snap: the card is shown to everyone. */
   flash?: { spot: Spot; card?: Card }[];
+  /** `by` looked at the card at `spot` (never carries the card; the peeker gets it privately). */
+  peek?: { spot: Spot; by: string }[];
 }
 
 /** A log line. `to` set = private to that player (peek results); otherwise public. */

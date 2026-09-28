@@ -5,25 +5,43 @@ import lawStar from '../assets/icons/law-star.svg?raw';
  * Card movement animations.
  *
  * The server sends a public `motion` with each event (e.g. "held → Ana's slot 2, Ana's slot 2 →
- * discard"). Events arrive just before the new table view, so `captureMotion` records where each
- * card starts on the *current* screen; after the table re-renders, `playMotions` flies a card from
- * there to its destination and marks the slot that changed.
+ * discard"). Events arrive just before the new table view, so `captureMotion` records how the table
+ * looks *now* (where each card is and what it looks like). After the table re-renders,
+ * `playMotions` flies each card from its old look/place to its new one — turning it over in the air
+ * when it goes from face-down to face-up or back — then marks the card that changed.
  */
 
-const FLY_MS = 560;
-const STAGGER_MS = 140;
+const FLY_MS = 600;
+const STAGGER_MS = 150;
+const SETTLE_MS = 280;
 const CHANGED_MS = 2600;
 const STALE_MS = 2500;
+const PEEK_MS = 3600; // peeker: lift → flip up → hold ~2.4s → flip down → return
+const PEEK_WATCH_MS = 1800; // everyone else: card lifts toward the peeker and comes back
+const REVEAL_HOLD_MS = 2400; // reduced-motion fallback for the peeker
+
+interface CapturedMove {
+  from: Spot;
+  to: Spot;
+  card?: Card;
+  fromRect: DOMRect | null;
+  fromLook: HTMLElement | null; // clone of the source card as it looked
+  toPrevLook: HTMLElement | null; // clone of the destination before the change (underlay)
+}
 
 interface Pending {
   at: number;
-  moves: { from: Spot; to: Spot; card?: Card; fromRect: DOMRect | null }[];
+  moves: CapturedMove[];
   flash: { spot: Spot; card?: Card }[];
+  peek: { spot: Spot; by: string; look: HTMLElement | null }[];
+  reveals: Map<string, Card>;
+  snapshot: Map<string, DOMRect>;
 }
 
 const queue: Pending[] = [];
 
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+const animationsOff = () => reducedMotion() || document.hidden;
 
 export function spotKey(spot: Spot): string {
   switch (spot.at) {
@@ -50,90 +68,316 @@ function rectOf(spot: Spot): DOMRect | null {
   return new DOMRect(s.left + (s.width - c.width) / 2, s.top + (s.height - c.height) / 2, c.width, c.height);
 }
 
-/** Called as soon as an event arrives (the screen still shows the previous state). */
+/** A detached copy of a card's current look (without interaction/animation state). */
+function lookOf(el: HTMLElement | null): HTMLElement | null {
+  if (!el || el.classList.contains('pcard--gap')) return null;
+  const c = el.cloneNode(true) as HTMLElement;
+  for (const a of ['data-spot', 'data-changed', 'data-flash', 'disabled', 'aria-label', 'title', 'role']) c.removeAttribute(a);
+  c.classList.remove('pcard--selectable', 'pcard--selected', 'pcard--flipped');
+  c.style.cssText = '';
+  return c;
+}
+
+/**
+ * Layout position for the settle glide, measured on the card's wrapper: the card itself may be
+ * mid-animation or lifted by hover/selection, which would register as fake movement.
+ */
+const layoutRect = (el: HTMLElement) => (el.parentElement ?? el).getBoundingClientRect();
+
+function snapshotAll(): Map<string, DOMRect> {
+  const m = new Map<string, DOMRect>();
+  document.querySelectorAll<HTMLElement>('[data-spot]').forEach((el) => m.set(el.dataset.spot!, layoutRect(el)));
+  return m;
+}
+
+/** Called as soon as a public event arrives (the screen still shows the previous state). */
 export function captureMotion(motion: Motion) {
   queue.push({
     at: performance.now(),
-    moves: (motion.moves ?? []).map((m) => ({ ...m, fromRect: rectOf(m.from) })),
+    moves: (motion.moves ?? []).map((m) => ({
+      ...m,
+      fromRect: rectOf(m.from),
+      fromLook: lookOf(cardEl(m.from)),
+      toPrevLook: lookOf(cardEl(m.to)),
+    })),
     flash: motion.flash ?? [],
+    peek: (motion.peek ?? []).map((p) => ({ ...p, look: lookOf(cardEl(p.spot)) })),
+    reveals: new Map(),
+    // Only the first event of a batch sees the true "before" layout; later ones reuse it.
+    snapshot: queue.length ? queue[0].snapshot : snapshotAll(),
   });
 }
 
-/** Called after the table re-renders with the new state. */
-export function playMotions() {
+/** A private peek result for this player; attached to the peek that caused it. */
+export function captureReveal(reveal: { playerId: string; slot: number; card: Card }) {
+  const key = spotKey({ at: 'slot', playerId: reveal.playerId, slot: reveal.slot });
+  const target = [...queue].reverse().find((p) => p.peek.some((pk) => spotKey(pk.spot) === key));
+  target?.reveals.set(key, reveal.card);
+}
+
+/** Called after the table re-renders with the new state. `me` = this viewer's player id. */
+export function playMotions(me: string) {
   const now = performance.now();
   const items = queue.splice(0).filter((p) => now - p.at < STALE_MS);
+  if (!items.length) return;
+
+  // Cards being flown onto (hidden until they land) or peeked at don't also glide; everything else
+  // that moved because the layout changed (including piles a card just left) does.
+  const busy = new Set<string>();
   for (const p of items) {
-    p.moves.forEach((m, i) => fly(m.fromRect, m.to, m.card, i * STAGGER_MS));
-    for (const f of p.flash) flash(f.spot, f.card);
+    for (const m of p.moves) busy.add(spotKey(m.to));
+    for (const pk of p.peek) busy.add(spotKey(pk.spot));
+  }
+  settle(items[0].snapshot, busy);
+
+  // Events play one after another (e.g. the reshuffle, then the draw that needed it).
+  let offset = 0;
+  for (const p of items) {
+    const sources = new Set(p.moves.map((m) => spotKey(m.from)));
+    let span = 0;
+    p.moves.forEach((m, i) => {
+      const underlay = m.to.at === 'discard' && !sources.has('discard') ? m.toPrevLook : null;
+      fly({ ...m, underlay, arc: i % 2 === 0 ? 1 : -1 }, offset + i * STAGGER_MS);
+      span = Math.max(span, i * STAGGER_MS + FLY_MS);
+    });
+    for (const f of p.flash) {
+      window.setTimeout(() => flash(f.spot, f.card), offset);
+      span = Math.max(span, 400);
+    }
+    for (const pk of p.peek) {
+      const card = p.reveals.get(spotKey(pk.spot));
+      if (pk.by === me && card) peekAsViewer(pk.spot, pk.look, card, offset);
+      else peekAsOnlooker(pk.spot, pk.by, offset);
+    }
+    offset += span;
   }
 }
 
-/** Deal animation at the start of a round: every slot flies in from the stock. */
+/** Deal at the start of a round: every slot flies in from the stock, then the first discard turns up. */
 export function playDeal(playerIds: string[], slotsPerPlayer: number) {
-  const stock = rectOf({ at: 'stock' });
-  if (!stock) return;
+  const stock = cardEl({ at: 'stock' });
+  const from = stock?.getBoundingClientRect() ?? null;
+  const look = lookOf(stock);
+  if (!from) return;
   let n = 0;
   for (let k = 0; k < slotsPerPlayer; k++) {
-    for (const playerId of playerIds) fly(stock, { at: 'slot', playerId, slot: k }, undefined, n++ * 45, false);
+    for (const playerId of playerIds) {
+      fly({ from: { at: 'stock' }, to: { at: 'slot', playerId, slot: k }, fromRect: from, fromLook: look, markChanged: false }, n++ * 55);
+    }
+  }
+  fly({ from: { at: 'stock' }, to: { at: 'discard' }, fromRect: from, fromLook: look, markChanged: false }, n * 55 + 120);
+}
+
+// ---------------------------------------------------------------- flights
+
+interface Flight {
+  from: Spot;
+  to: Spot;
+  card?: Card;
+  fromRect: DOMRect | null;
+  fromLook: HTMLElement | null;
+  underlay?: HTMLElement | null;
+  arc?: number;
+  markChanged?: boolean;
+}
+
+/**
+ * Jump any of *our* running animations on a card (e.g. a turn-over) to their end before we measure
+ * and cover it. CSS animations (like the looping snap-window glow) are left alone: finishing an
+ * infinite animation throws.
+ */
+function settleNow(el: HTMLElement | null) {
+  for (const a of el?.getAnimations() ?? []) {
+    if (a instanceof CSSAnimation || a instanceof CSSTransition) continue;
+    const end = a.effect?.getComputedTiming().endTime;
+    if (typeof end !== 'number' || !Number.isFinite(end)) continue;
+    try {
+      a.finish();
+    } catch {
+      /* already finished or not finishable: ignore */
+    }
   }
 }
 
-function fly(fromRect: DOMRect | null, to: Spot, card: Card | undefined, delay: number, markChanged = true) {
-  const target = cardEl(to);
-  const toRect = target?.getBoundingClientRect() ?? rectOf(to);
+function fly(f: Flight, delay: number) {
+  const markChanged = f.markChanged ?? true;
+  const target = cardEl(f.to);
+  settleNow(target);
+  const toRect = target?.getBoundingClientRect() ?? rectOf(f.to);
   if (!toRect || toRect.width === 0) return;
-  // Hidden tabs pause animations; don't leave real cards invisible or pile up flights.
-  if (reducedMotion() || !fromRect || document.hidden) {
-    if (target && markChanged) mark(target);
+  if (animationsOff() || !f.fromRect) {
+    if (target && markChanged) window.setTimeout(() => mark(target), delay);
     return;
   }
 
-  const size = target?.className.match(/pcard--(sm|md|lg)/)?.[1] ?? 'md';
-  const el = buildCard(card, size, toRect.width);
-  Object.assign(el.style, {
-    position: 'fixed',
-    left: `${toRect.left}px`,
-    top: `${toRect.top}px`,
-    width: `${toRect.width}px`,
-    margin: '0',
-    zIndex: '50',
-    pointerEvents: 'none',
-    transformOrigin: '0 0',
-  });
-  layer().appendChild(el);
+  const size = sizeOf(target) ?? 'md';
+  // No card on screen to copy (an opponent's held card): it was face-down to us, unless it came
+  // off the (public) discard pile.
+  const start = f.fromLook ?? buildCard(f.from.at === 'discard' ? f.card : undefined, size);
+  const end = lookOf(target) ?? buildCard(undefined, size);
+  const turns = isFace(start) !== isFace(end);
+  const flyer = twoSided(start, end, size, toRect);
+  const under = f.underlay ? placed(f.underlay, size, toRect, 48) : null;
+  if (under) layer().appendChild(under);
+  layer().appendChild(flyer);
 
-  // Hide the real card until the flying one lands on it.
   if (target) target.style.visibility = 'hidden';
-  const dx = fromRect.left - toRect.left;
-  const dy = fromRect.top - toRect.top;
-  const s = fromRect.width / toRect.width;
-  const lift = Math.min(60, Math.hypot(dx, dy) * 0.18);
-  const anim = el.animate(
+  const dx = f.fromRect.left - toRect.left;
+  const dy = f.fromRect.top - toRect.top;
+  const s = f.fromRect.width / toRect.width;
+  const lift = Math.min(70, 16 + Math.hypot(dx, dy) * 0.18) * (f.arc ?? 1);
+  const tilt = (dx > 0 ? -6 : 6) * (f.arc ?? 1);
+  const move = flyer.animate(
     [
-      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, boxShadow: '0 3px 0 var(--saddle-deep)' },
+      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, filter: 'drop-shadow(0 3px 0 var(--saddle-deep))' },
       {
-        offset: 0.55,
-        transform: `translate(${dx * 0.4}px, ${dy * 0.4 - lift}px) scale(${(s + 1) / 2 * 1.12}) rotate(${dx > 0 ? -5 : 5}deg)`,
-        boxShadow: '0 16px 24px var(--saddle-soft)',
+        offset: 0.5,
+        transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(${((s + 1) / 2) * 1.14}) rotate(${tilt}deg)`,
+        filter: 'drop-shadow(0 18px 14px var(--saddle-soft))',
       },
-      { transform: 'none', boxShadow: '0 3px 0 var(--saddle-deep)', ...(target ? {} : { opacity: 0 }) },
+      { transform: 'none', filter: 'drop-shadow(0 3px 0 var(--saddle-deep))', ...(target ? {} : { opacity: 0 }) },
     ],
-    { duration: FLY_MS, delay, easing: 'cubic-bezier(.25,.8,.25,1)', fill: 'backwards' },
+    { duration: FLY_MS, delay, easing: 'cubic-bezier(.3,.7,.25,1)', fill: 'backwards' },
   );
+  const inner = flyer.firstElementChild as HTMLElement;
+  if (turns) {
+    inner.animate(
+      [{ transform: 'rotateY(0deg)' }, { offset: 0.3, transform: 'rotateY(0deg)' }, { offset: 0.72, transform: 'rotateY(180deg)' }, { transform: 'rotateY(180deg)' }],
+      { duration: FLY_MS, delay, easing: 'ease-in-out', fill: 'both' },
+    );
+  } else {
+    (inner.lastElementChild as HTMLElement).style.display = 'none';
+  }
+
   let finished = false;
   const done = () => {
     if (finished) return;
     finished = true;
-    el.remove();
+    flyer.remove();
+    under?.remove();
     if (target) {
       target.style.visibility = '';
       if (markChanged) mark(target);
     }
   };
-  anim.finished.then(done, done);
+  move.finished.then(done, done);
   window.setTimeout(done, delay + FLY_MS + 400); // safety net: never leave a card hidden
 }
+
+/** Cards that shifted because the layout changed (new penalty column, piles re-centring) glide over. */
+function settle(before: Map<string, DOMRect>, busy: Set<string>) {
+  if (animationsOff()) return;
+  document.querySelectorAll<HTMLElement>('[data-spot]').forEach((el) => {
+    const key = el.dataset.spot!;
+    const old = before.get(key);
+    if (!old || busy.has(key)) return;
+    const now = layoutRect(el);
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: SETTLE_MS, easing: 'ease-out' });
+  });
+}
+
+// ---------------------------------------------------------------- peeks
+
+/** The peeker: the card lifts over their hand, turns up, is held a moment, turns down, goes back. */
+function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: number) {
+  window.setTimeout(() => {
+    const target = cardEl(spot);
+    if (!target) return;
+    settleNow(target);
+    const r = target.getBoundingClientRect();
+    const size = sizeOf(target) ?? 'md';
+    if (animationsOff()) {
+      const face = placed(buildCard(card, size), size, r, 55);
+      layer().appendChild(face);
+      face.animate([{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.9 }, { opacity: 0 }], { duration: REVEAL_HOLD_MS });
+      window.setTimeout(() => face.remove(), REVEAL_HOLD_MS);
+      return;
+    }
+    // Look & swap keeps the card face-up afterwards (the player is deciding), so don't turn it back.
+    const staysUp = isFace(target);
+    const view = viewingRect(r);
+    const flyer = twoSided(look ?? buildCard(undefined, size), buildCard(card, size), size, view);
+    flyer.classList.add('flyer--peek');
+    layer().appendChild(flyer);
+    target.style.visibility = 'hidden';
+    const at = `translate(${r.left - view.left}px, ${r.top - view.top}px) scale(${r.width / view.width})`;
+    const move = flyer.animate(
+      [
+        { transform: at },
+        { offset: 0.13, transform: 'translateY(-6px) rotate(-2deg)' },
+        { offset: 0.86, transform: 'translateY(0) rotate(1deg)' },
+        { transform: at },
+      ],
+      { duration: PEEK_MS, easing: 'ease-in-out' },
+    );
+    (flyer.firstElementChild as HTMLElement).animate(
+      staysUp
+        ? [{ transform: 'rotateY(0)' }, { offset: 0.12, transform: 'rotateY(0)' }, { offset: 0.24, transform: 'rotateY(180deg)' }, { transform: 'rotateY(180deg)' }]
+        : [
+            { transform: 'rotateY(0)' },
+            { offset: 0.12, transform: 'rotateY(0)' },
+            { offset: 0.24, transform: 'rotateY(180deg)' },
+            { offset: 0.74, transform: 'rotateY(180deg)' },
+            { offset: 0.86, transform: 'rotateY(0)' },
+            { transform: 'rotateY(0)' },
+          ],
+      { duration: PEEK_MS, easing: 'ease-in-out', fill: 'both' },
+    );
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      flyer.remove();
+      target.style.visibility = '';
+    };
+    move.finished.then(done, done);
+    window.setTimeout(done, PEEK_MS + 400);
+  }, delay);
+}
+
+/** Everyone else: the card lifts, tips toward whoever is looking at it, then settles back. */
+function peekAsOnlooker(spot: Spot, by: string, delay: number) {
+  window.setTimeout(() => {
+    const el = cardEl(spot);
+    if (!el) return;
+    if (animationsOff()) {
+      el.setAttribute('data-flash', '');
+      window.setTimeout(() => el.removeAttribute('data-flash'), 1200);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    const seat = document.querySelector<HTMLElement>(`[data-seat="${by}"]`)?.getBoundingClientRect();
+    const tx = seat ? (seat.left + seat.width / 2 - (r.left + r.width / 2)) * 0.35 : 0;
+    const ty = seat ? (seat.top + seat.height / 2 - (r.top + r.height / 2)) * 0.35 : -r.height * 0.4;
+    const lifted = `translate(${tx}px, ${ty - 8}px) rotate(${tx > 0 ? 8 : -8}deg) scale(1.15)`;
+    const shadow = 'drop-shadow(0 10px 8px var(--saddle-soft))';
+    el.animate(
+      [
+        { transform: 'none' },
+        { offset: 0.25, transform: lifted, filter: shadow },
+        { offset: 0.72, transform: lifted, filter: shadow },
+        { transform: 'none' },
+      ],
+      { duration: PEEK_WATCH_MS, easing: 'ease-in-out' },
+    );
+  }, delay);
+}
+
+/** Where the peeker holds a card up to look at it: just above their own hand, a bit larger. */
+function viewingRect(card: DOMRect): DOMRect {
+  const hand = document.querySelector<HTMLElement>('.mine__hand')?.getBoundingClientRect();
+  const sample = document.querySelector<HTMLElement>('.mine .pcard')?.getBoundingClientRect();
+  const w = Math.min((sample?.width ?? card.width * 1.6) * 1.4, window.innerWidth * 0.3, 130);
+  const h = w * 1.4;
+  const cx = hand ? hand.left + hand.width / 2 : window.innerWidth / 2;
+  const top = hand ? Math.max(8, hand.top - h * 0.55) : window.innerHeight / 2 - h / 2;
+  return new DOMRect(Math.min(Math.max(8, cx - w / 2), window.innerWidth - w - 8), Math.min(top, window.innerHeight - h - 8), w, h);
+}
+
+// ---------------------------------------------------------------- wrong snap + changed marker
 
 /** A lingering glow on a card that just changed, so players can see what was replaced. */
 function mark(el: HTMLElement) {
@@ -143,7 +387,7 @@ function mark(el: HTMLElement) {
   window.setTimeout(() => el.removeAttribute('data-changed'), CHANGED_MS);
 }
 
-/** Wiggle a card (someone peeked at it); if `card` is given, show its face briefly (wrong snap). */
+/** Wrong snap: wiggle the card and show its face to everyone for a moment. */
 function flash(spot: Spot, card?: Card) {
   const el = cardEl(spot);
   if (!el || document.hidden) return;
@@ -153,17 +397,8 @@ function flash(spot: Spot, card?: Card) {
   window.setTimeout(() => el.removeAttribute('data-flash'), 1000);
   if (!card) return;
   const r = el.getBoundingClientRect();
-  const size = el.className.match(/pcard--(sm|md|lg)/)?.[1] ?? 'md';
-  const face = buildCard(card, size, r.width);
-  Object.assign(face.style, {
-    position: 'fixed',
-    left: `${r.left}px`,
-    top: `${r.top}px`,
-    width: `${r.width}px`,
-    margin: '0',
-    zIndex: '49',
-    pointerEvents: 'none',
-  });
+  const size = sizeOf(el) ?? 'md';
+  const face = placed(buildCard(card, size), size, r, 49);
   layer().appendChild(face);
   const anim = face.animate(
     [
@@ -172,11 +407,13 @@ function flash(spot: Spot, card?: Card) {
       { transform: 'rotateY(0deg)', offset: 0.88 },
       { transform: 'rotateY(90deg)', offset: 1 },
     ],
-    { duration: reducedMotion() ? 1600 : 1800, easing: 'ease-in-out' },
+    { duration: 1800, easing: 'ease-in-out' },
   );
   anim.finished.then(() => face.remove(), () => face.remove());
   window.setTimeout(() => face.remove(), 2400);
 }
+
+// ---------------------------------------------------------------- DOM helpers
 
 let layerEl: HTMLElement | null = null;
 function layer(): HTMLElement {
@@ -189,12 +426,47 @@ function layer(): HTMLElement {
   return layerEl;
 }
 
+const sizeOf = (el: HTMLElement | null) => el?.className.match(/pcard--(sm|md|lg)/)?.[1] ?? null;
+const isFace = (el: HTMLElement) => el.classList.contains('pcard--face');
+
+/** Resize a card look to `size` at a given pixel width. */
+function fit(el: HTMLElement, size: string, width: number) {
+  el.classList.remove('pcard--sm', 'pcard--md', 'pcard--lg');
+  el.classList.add(`pcard--${size}`);
+  el.style.setProperty('--w', `${width}px`);
+  el.style.width = `${width}px`;
+  el.style.margin = '0';
+  return el;
+}
+
+/** A card look fixed at a screen rect (underlay / reveal overlay). */
+function placed(look: HTMLElement, size: string, r: DOMRect, z: number) {
+  const el = fit(look.cloneNode(true) as HTMLElement, size, r.width);
+  Object.assign(el.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, zIndex: String(z), pointerEvents: 'none' });
+  return el;
+}
+
+/** A card with two sides (start look, end look) that can turn over in flight. */
+function twoSided(start: HTMLElement, end: HTMLElement, size: string, r: DOMRect) {
+  const flyer = document.createElement('div');
+  flyer.className = 'flyer';
+  Object.assign(flyer.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+  const inner = document.createElement('div');
+  inner.className = 'flyer__inner';
+  const a = fit(start.cloneNode(true) as HTMLElement, size, r.width);
+  const b = fit(end.cloneNode(true) as HTMLElement, size, r.width);
+  a.classList.add('flyer__side');
+  b.classList.add('flyer__side', 'flyer__side--back');
+  inner.append(a, b);
+  flyer.append(inner);
+  return flyer;
+}
+
 const SUIT: Record<string, string> = { S: '♠', C: '♣', H: '♥', D: '♦' };
 
 /** Same markup as <PlayingCard>, built by hand for the animation layer. */
-function buildCard(card: Card | undefined, size: string, width: number): HTMLElement {
+function buildCard(card: Card | undefined, size: string): HTMLElement {
   const el = document.createElement('div');
-  el.style.setProperty('--w', `${width}px`);
   if (!card) {
     el.className = `pcard pcard--${size} pcard--back`;
     el.innerHTML = `<span class="pcard__back"><span class="pcard__back-icon" style="display:inline-block">${lawStar}</span></span>`;

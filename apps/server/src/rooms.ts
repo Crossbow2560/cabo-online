@@ -83,6 +83,8 @@ export class RoomManager {
     private out: Outbox,
     private timings: Partial<Timings> = {},
     private kickAfterMs = DEFAULT_KICK_AFTER_MS,
+    /** Dev/testing only: deal every round from this seed (see CABO_SEED). */
+    private fixedSeed: number | null = null,
   ) {}
 
   roomOf(sessionId: string): Room | null {
@@ -197,7 +199,7 @@ export class RoomManager {
       roundNo: room.rec.roundNo,
       state: createGame({
         players: room.rec.players.map((p) => ({ id: p.sessionId, name: p.name })),
-        seed: randomInt(2 ** 31),
+        seed: this.fixedSeed ?? randomInt(2 ** 31),
         dealerIndex: room.rec.dealerIndex,
         now: Date.now(),
         timings: this.timings,

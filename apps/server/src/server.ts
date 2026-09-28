@@ -39,6 +39,8 @@ export interface ServerOptions {
   timings?: Partial<Timings>;
   /** Offline players are removed after this long (default 5 minutes). */
   kickAfterMs?: number;
+  /** Dev/testing only: fixed deal seed. Never set in production. */
+  fixedSeed?: number | null;
   /** R28: max snaps per socket per second. */
   snapRateLimit?: number;
   webDist?: string;
@@ -68,6 +70,7 @@ export async function createCaboServer(opts: ServerOptions) {
     },
     opts.timings,
     opts.kickAfterMs,
+    opts.fixedSeed ?? null,
   );
   const restored = await rooms.restore();
   if (restored) console.log(`restored ${restored} room(s)`);

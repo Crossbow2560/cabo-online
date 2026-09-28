@@ -4,7 +4,7 @@ import type { Ack, ClientToServer, GameEvent, PlayerView, RoomState, ServerToCli
 import { DesertBackdrop } from './components/DesertBackdrop';
 import { RulesModal } from './components/RulesModal';
 import { Game } from './Game';
-import { captureMotion } from './lib/motion';
+import { captureMotion, captureReveal } from './lib/motion';
 import { Landing } from './screens/Landing';
 import { Nickname } from './screens/Nickname';
 import { Lobby } from './screens/Lobby';
@@ -142,7 +142,12 @@ function Connected({ session, onSignOut, onRules }: { session: Session; onSignOu
     });
     s.on('game:view', setView);
     s.on('game:log', (line) => {
-      if (line.motion) captureMotion(line.motion); // measure where cards start before the view updates
+      try {
+        if (line.motion) captureMotion(line.motion); // measure where cards start before the view updates
+        if (line.reveal) captureReveal(line.reveal); // our private peek: the card to show while it's lifted
+      } catch (e) {
+        console.error('[motion]', e); // animations are decoration; never drop the event
+      }
       setLog((l) => [...l.slice(-199), { ...line, id: ++logSeq, rx: Date.now() }]);
     });
     s.on('session:replaced', () => {

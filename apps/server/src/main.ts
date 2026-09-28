@@ -25,7 +25,12 @@ if (publicUrl) {
   }
 }
 
-const server = await createCaboServer({ store, publicUrl, webDist: path.resolve(here, '../../web/dist') });
+// Dev/testing only: CABO_SEED deals every round from a fixed seed, so the deck order is known.
+const seedEnv = process.env.CABO_SEED?.trim();
+const fixedSeed = seedEnv && Number.isInteger(Number(seedEnv)) ? Number(seedEnv) : null;
+if (fixedSeed !== null) console.warn(`⚠ CABO_SEED=${fixedSeed}: every round deals the SAME deck. For testing only — never set this in production.`);
+
+const server = await createCaboServer({ store, publicUrl, fixedSeed, webDist: path.resolve(here, '../../web/dist') });
 const port = await server.listen(Number(process.env.PORT ?? 3101));
 console.log(`Cabo server listening on :${port}`);
 
