@@ -1,0 +1,59 @@
+name: Test & deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # manual "Run workflow" button
+
+# never run two deploys at once; a newer push waits for the current one
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -w @cabo/web
+
+  deploy:
+    needs: test
+    # a self-hosted runner installed on your server (with Docker)
+    runs-on: [self-hosted, linux]
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write server env from secrets
+        run: |
+          umask 077
+          printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > apps/server/.env
+
+      - name: Build and (re)start the container
+        run: docker compose -p cabo up -d --build --remove-orphans
+
+      - name: Wait until healthy
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose -p cabo ps -q cabo)")
+            echo "health: $status"
+            [ "$status" = "healthy" ] && exit 0
+            [ "$status" = "unhealthy" ] && { docker compose -p cabo logs --tail 50 cabo; exit 1; }
+            sleep 3
+          done
+          docker compose -p cabo logs --tail 50 cabo
+          exit 1
+
+      - name: Clean up old images
+        if: always()
+        run: docker image prune -f

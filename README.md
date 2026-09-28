@@ -36,6 +36,37 @@ npm run build -w @cabo/web
 DATABASE_URL=... npm start -w @cabo/server   # also serves apps/web/dist
 ```
 
+## Self-hosting with Docker
+
+One container serves the game server and the built web client on port 3101.
+
+```bash
+# on your server, in the repo
+cp apps/server/.env.example apps/server/.env   # put your Supabase DATABASE_URL in it
+docker compose up -d --build
+```
+
+Put it behind your usual reverse proxy for https (e.g. Caddy: `cabo.example.com { reverse_proxy localhost:3101 }`).
+WebSockets pass through Caddy/nginx fine; with nginx, forward the `Upgrade`/`Connection` headers.
+Update later with `git pull && docker compose up -d --build`, or let CI do it (below).
+
+### Auto-deploy on push (GitHub Actions + self-hosted runner)
+
+`.github/workflows/deploy.yml` runs on every push to `main`: typecheck, tests and a web build on
+GitHub's runner, then, if they pass, `docker compose -p cabo up -d --build` on **your server's**
+self-hosted runner, and waits for the container to report healthy.
+
+One-time setup:
+1. **Server:** install Docker, then add a runner: repo → *Settings → Actions → Runners → New self-hosted
+   runner* (Linux) and follow the commands. Install it as a service (`sudo ./svc.sh install && sudo ./svc.sh start`)
+   and put the runner's user in the `docker` group (`sudo usermod -aG docker <user>`, then restart the service).
+2. **Secret:** repo → *Settings → Secrets and variables → Actions* → new secret `DATABASE_URL`
+   (the Supabase session-pooler string). You can scope it to a `production` environment.
+3. Push to `main` (or use *Actions → Test & deploy → Run workflow*).
+
+Keep the self-hosted runner on push-only workflows. If the repo is public, set *Settings → Actions →
+Fork pull request workflows* to require approval, so strangers' PRs can't run code on your server.
+
 ## Tests
 
 ```bash

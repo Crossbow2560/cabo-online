@@ -1,0 +1,12 @@
+services:
+  cabo:
+    build: .
+    image: cabo-online
+    restart: unless-stopped
+    ports:
+      - "3101:3101"
+    # DATABASE_URL (Supabase session-pooler string). Locally you create this file yourself;
+    # the deploy workflow writes it from the DATABASE_URL repo secret. Missing = in-memory storage.
+    env_file:
+      - path: apps/server/.env
+        required: false
