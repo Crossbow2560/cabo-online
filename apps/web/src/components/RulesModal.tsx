@@ -48,9 +48,9 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             <li><span className="badge">7</span><span className="badge">8</span>Look at one of your own cards.</li>
             <li><span className="badge">9</span><span className="badge">10</span>Look at another player’s card.</li>
             <li><span className="badge">J</span><span className="badge">Q</span>Blind swap one of your cards with another player’s.</li>
-            <li><span className="badge">K♠</span><span className="badge">K♣</span>Look at another player’s card and one of your own, then choose whether to swap them.</li>
+            <li><span className="badge">K♠</span><span className="badge">K♣</span>Look at another player’s card and one of your own. Then you may swap any one of your cards with any other player’s card (not just the two you looked at), or keep everything as it is.</li>
           </ul>
-          <p><b>The CABO caller’s hand is locked.</b> Once someone calls CABO, a Jack or Queen can’t blind swap with them, a Black King can look at their card but not swap it, and nobody else can snap their cards.</p>
+          <p><b>The CABO caller’s hand is locked.</b> Once someone calls CABO, a Jack or Queen can’t blind swap with them, a Black King can look at their card but not swap with them, and nobody else can snap their cards.</p>
 
           <h3>Snapping</h3>
           <p>Whenever a card is discarded, anyone can race to throw a card of the <b>same rank</b> on top - from their own hand or someone else’s. Only the first one counts. If a special card was used to look at or swap cards, snapping opens once those cards are back in place.</p>

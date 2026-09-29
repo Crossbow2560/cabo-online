@@ -89,7 +89,7 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - Black King and 9/10 must target **another** player.
   - 7/8 targets one of the player's own cards.
   - Q/J swaps exactly one of the player's own cards with one of another player's cards. It cannot swap between two opponents.
-- **R10:** Black King is a three-step action: `PEEK_OTHER` (another player's card), then `PEEK_OWN` (one of your own), then `SWAP {mySlot}` (swaps exactly those two cards) or `SKIP`. The player sees both cards before deciding.
+- **R10:** Black King is a three-step action: `PEEK_OTHER` (another player's card), then `PEEK_OWN` (one of your own), then `SWAP {mySlot, targetId, slot}` or `SKIP`. The player sees both cards before deciding. The swap may be **any** one of their cards with **any** other player's card, not only the two they looked at (`targetId`/`slot` default to the card they looked at). One swap at most, and never with the CABO caller (R29).
 - **R11:** Swaps are public actions. The log shows *who* swapped *which slots*, but never card values, just as they'd be visible at a real table. A peek is also logged ("Ana looked at Bob's slot 1"); only the peeker sees the value.
 
 **Snapping**

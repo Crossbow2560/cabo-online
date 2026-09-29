@@ -93,7 +93,12 @@ export type Action =
   | ({ type: 'PEEK_OWN'; slot: number } & Base)
   | ({ type: 'PEEK_OTHER'; targetId: string; slot: number } & Base)
   | ({ type: 'BLIND_SWAP'; mySlot: number; targetId: string; slot: number } & Base)
-  | ({ type: 'SWAP'; mySlot: number } & Base)
+  /**
+   * R10: the Black King's swap, after looking at a card of theirs and one of yours. Any of your
+   * cards with any other player's card (not only the two looked at); `targetId`/`slot` default to
+   * the other player's card you looked at.
+   */
+  | ({ type: 'SWAP'; mySlot: number; targetId?: string; slot?: number } & Base)
   | ({ type: 'SKIP' } & Base)
   | ({ type: 'GIVE_CARD'; mySlot: number } & Base)
   /**

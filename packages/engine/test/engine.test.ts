@@ -255,8 +255,7 @@ describe('abilities', () => {
     s = r.state;
     expect(s.phase).toMatchObject({ kind: 'ability', peekedMine: 3 });
     expect(redactFor(s, 'p2').abilityPeekedMine).toBe(3);
-    expect(err(s, { type: 'SWAP', playerId: 'p1', mySlot: 1 })).toBe('invalid'); // only the card you looked at
-    s = ok(s, { type: 'SWAP', playerId: 'p1', mySlot: 3 });
+    s = ok(s, { type: 'SWAP', playerId: 'p1', mySlot: 3 }); // defaults: the two cards looked at
     expect(s.players[1].slots[3]).toEqual(c('2S'));
     expect(s.players[0].slots[0]).toEqual(c('10H'));
 
@@ -264,6 +263,25 @@ describe('abilities', () => {
     expect(red.phase.kind).toBe('snap');
     const joker = drawAndDiscard('JOKER');
     expect(joker.phase.kind).toBe('snap');
+  });
+
+  it('R10: after both looks, the Black King may swap any of my cards with any other player\'s card', () => {
+    let s = drawAndDiscard('KS');
+    s = ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
+    s = ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 });
+    const before = s;
+    // Neither card looked at: p1's slot 1 for p2's slot 2.
+    s = ok(s, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p2', slot: 2 });
+    expect(s.players[1].slots[1]).toEqual(before.players[2].slots[2]);
+    expect(s.players[2].slots[2]).toEqual(before.players[1].slots[1]);
+    expect(s.players[0].slots[0]).toEqual(before.players[0].slots[0]); // the card looked at stays put
+    expect(s.phase).toEqual({ kind: 'settle', after: 'swap' });
+    // Still not with yourself, not an empty slot, and only once both looks are done.
+    expect(err(before, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p1', slot: 2 })).toBe('invalid');
+    expect(err(before, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p2', slot: 9 })).toBe('invalid');
+    let early = drawAndDiscard('KS');
+    early = ok(early, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
+    expect(err(early, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p2', slot: 2 })).toBe('invalid');
   });
 
   it('black king: can decline the swap after looking at both', () => {

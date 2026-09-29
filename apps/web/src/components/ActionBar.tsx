@@ -1,6 +1,26 @@
 import type { ClientAction, PlayerView } from '@cabo/engine';
 
-export type Pick = null | 'take_discard' | { blindMine: number };
+/** R10: the Black King swap being chosen: one of my cards and another player's card. */
+export interface KingChoice {
+  mine: number | null;
+  target: { playerId: string; slot: number } | null;
+}
+
+export type Pick = null | 'take_discard' | { blindMine: number } | { king: KingChoice };
+
+/** The J/Q blind swap's chosen card of mine, if any. */
+export const blindPick = (p: Pick): number | null => (p && typeof p === 'object' && 'blindMine' in p ? p.blindMine : null);
+
+/** Black King, after both looks: the player picks the swap (any card of theirs, any other player's). */
+export const kingDeciding = (view: PlayerView) =>
+  view.phase === 'ability' && view.ability === 'look_swap' && !!view.abilityPeeked && view.abilityPeekedMine !== null;
+
+/** The swap currently chosen: what the player tapped, else the two cards they looked at (never a CABO caller's). */
+export function kingChoice(view: PlayerView, pick: Pick): KingChoice {
+  if (pick && typeof pick === 'object' && 'king' in pick) return pick.king;
+  const p = view.abilityPeeked;
+  return { mine: view.abilityPeekedMine, target: p && p.playerId !== view.caboCalledBy ? p : null };
+}
 
 /** Context buttons for the current phase (logic carried over from the interim Controls). */
 export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
@@ -93,16 +113,20 @@ export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
         </div>
       );
     case 'ability':
-      // Black King, after looking at both cards: decide.
-      if (view.ability === 'look_swap' && view.abilityPeeked && view.abilityPeekedMine !== null) {
-        // R29: no swapping with the player who called CABO.
-        const locked = view.abilityPeeked.playerId === view.caboCalledBy;
+      // Black King, after looking at both cards (R10): swap the chosen pair, or keep everything.
+      if (kingDeciding(view)) {
+        const c = kingChoice(view, pick);
+        const ready = c.mine !== null && c.target !== null;
         return (
           <div className="actions">
-            {!locked && (
-              <button className="btn btn--primary" onClick={() => act({ type: 'SWAP', mySlot: view.abilityPeekedMine! })}>Swap them</button>
-            )}
-            <button className={`btn ${locked ? 'btn--primary' : 'btn--light'}`} onClick={() => act({ type: 'SKIP' })}>Keep them</button>
+            <button
+              className="btn btn--primary"
+              disabled={!ready}
+              onClick={() => ready && act({ type: 'SWAP', mySlot: c.mine!, targetId: c.target!.playerId, slot: c.target!.slot })}
+            >
+              Swap
+            </button>
+            <button className="btn btn--light" onClick={() => act({ type: 'SKIP' })}>Keep them</button>
           </div>
         );
       }

@@ -176,10 +176,13 @@ export class BotBrain {
           const mine = this.worst(my) ?? my.find((s) => !s.card) ?? my[0];
           return mine ? { type: 'PEEK_OWN', slot: mine.slot, ...base } : skip;
         }
-        const theirs = this.known.get(slotKey(view.abilityPeeked.playerId, view.abilityPeeked.slot));
-        const mine = this.known.get(slotKey(this.id, view.abilityPeekedMine));
-        const canSwap = view.abilityPeeked.playerId !== view.caboCalledBy;
-        return canSwap && theirs && mine && cardValue(theirs) < cardValue(mine) ? { type: 'SWAP', mySlot: view.abilityPeekedMine, ...base } : skip;
+        // R10: any of our cards for any other player's (R29: not the caller's). Give our worst known
+        // card for the lowest card we know of, if that's an improvement.
+        const worst = this.worst(my);
+        const best = swappable.filter((s) => s.card).sort((a, b) => a.pts - b.pts)[0];
+        return worst && best && best.pts < worst.pts
+          ? { type: 'SWAP', mySlot: worst.slot, targetId: best.playerId, slot: best.slot, ...base }
+          : skip;
       }
       default:
         return skip;

@@ -229,9 +229,9 @@ class Ctx {
         const ph = this.expectPhase('ability');
         if (ph.ability !== 'look_swap' || !ph.peeked) reject('invalid', 'Look at a card first');
         if (ph.peekedMine === undefined) reject('invalid', 'Look at one of your own cards first');
-        if (a.mySlot !== ph.peekedMine) reject('invalid', 'Swap the card you looked at');
-        const target = this.player(ph.peeked!.playerId);
-        this.swap(me, a.mySlot, target, ph.peeked!.slot);
+        // R10: once both looks are done, any card of yours may go for any other player's card.
+        const target = this.other(me, a.targetId ?? ph.peeked!.playerId);
+        this.swap(me, a.mySlot, target, a.slot ?? ph.peeked!.slot);
         return this.settle('swap'); // R31
       }
       case 'BLIND_SWAP': {

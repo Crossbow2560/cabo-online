@@ -46,7 +46,7 @@ In the lobby, the host sees **+ Add bot** next to **Leave room**, and a **✕** 
 | 7 / 8 | Peeks at an unknown card of its own. |
 | 9 / 10 | Spies an unknown opponent card. |
 | J / Q | Blind-swaps its worst known card for a known opponent card at least 3 points lower. If its worst card is ≥ 10, it gambles on an unknown opponent card instead. Otherwise it skips. |
-| Black K | Looks at an opponent card, then its own worst card, and swaps if theirs is lower. |
+| Black K | Looks at an opponent card, then its own worst card. Then it swaps its worst known card for the lowest card it knows on another player's hand (never the CABO caller's), if that's lower. |
 | Snap window | Snaps any remembered card (its own first, else an opponent's) matching the discard, subject to its level. |
 | Snapped an opponent's card | Gives its worst known card (if worth ≥ 5), else an unknown one. |
 

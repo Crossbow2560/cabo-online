@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cardLabel, type Ack, type Card, type ClientAction, type PlayerView, type RoomState } from '@cabo/engine';
 import type { CaboSocket, LogLine } from './App';
-import { ActionBar, type Pick } from './components/ActionBar';
+import { ActionBar, blindPick, kingChoice, kingDeciding, type Pick } from './components/ActionBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { LogDock, Toasts } from './components/EventFeed';
 import { Hand, type SlotState } from './components/Hand';
@@ -140,9 +140,13 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         case 'peek_own': return mine;
         case 'peek_other': return !mine;
         // R10: theirs first, then one of yours; then Swap / Keep buttons (no more taps).
-        case 'look_swap': return !view.abilityPeeked ? !mine : view.abilityPeekedMine === null && mine;
+        // R10: look at theirs, then one of yours; then any of yours with any other player's (R29: not the caller's).
+        case 'look_swap':
+          if (!view.abilityPeeked) return !mine;
+          if (view.abilityPeekedMine === null) return mine;
+          return mine || ownerId !== view.caboCalledBy;
         // R29: the CABO caller's cards can't be swapped with.
-        case 'blind_swap': return mine || (pick !== null && typeof pick === 'object' && ownerId !== view.caboCalledBy);
+        case 'blind_swap': return mine || (blindPick(pick) !== null && ownerId !== view.caboCalledBy);
       }
     }
     return false;
@@ -166,11 +170,19 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         case 'look_swap':
           if (!view.abilityPeeked && !mine) act({ type: 'PEEK_OTHER', targetId: ownerId, slot });
           else if (view.abilityPeeked && view.abilityPeekedMine === null && mine) act({ type: 'PEEK_OWN', slot });
+          else if (kingDeciding(view)) {
+            // R10: choosing the swap: tap one of yours and one of theirs (any cards), then Swap.
+            const c = kingChoice(view, pick);
+            if (mine) setPick({ king: { ...c, mine: slot } });
+            else if (ownerId !== view.caboCalledBy) setPick({ king: { ...c, target: { playerId: ownerId, slot } } });
+          }
           return;
-        case 'blind_swap':
+        case 'blind_swap': {
+          const b = blindPick(pick);
           if (mine) setPick({ blindMine: slot });
-          else if (pick && typeof pick === 'object') act({ type: 'BLIND_SWAP', mySlot: pick.blindMine, targetId: ownerId, slot });
+          else if (b !== null) act({ type: 'BLIND_SWAP', mySlot: b, targetId: ownerId, slot });
           return;
+        }
       }
     }
   };
@@ -189,11 +201,14 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
       card: sv?.card ?? live,
       flipped: false,
       selectable: canTap(ownerId, slot),
-      selected:
-        (ownerId === me && typeof pick === 'object' && pick !== null && pick.blindMine === slot) ||
-        (view.abilityPeeked?.playerId === ownerId && view.abilityPeeked.slot === slot) ||
-        (ownerId === me && view.ability === 'look_swap' && view.abilityPeekedMine === slot) ||
-        (view.give?.targetId === ownerId && view.give.slot === slot),
+      selected: kingDeciding(view) && myTurn
+        ? // Black King: highlight the pair that Swap would exchange.
+          (ownerId === me && kingChoice(view, pick).mine === slot) ||
+          (kingChoice(view, pick).target?.playerId === ownerId && kingChoice(view, pick).target?.slot === slot)
+        : (ownerId === me && blindPick(pick) === slot) ||
+          (view.abilityPeeked?.playerId === ownerId && view.abilityPeeked.slot === slot) ||
+          (ownerId === me && view.ability === 'look_swap' && view.abilityPeekedMine === slot) ||
+          (view.give?.targetId === ownerId && view.give.slot === slot),
     };
   };
 
@@ -461,15 +476,15 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
     case 'ability':
       if (!myTurn) return <>{cur} is using a special card</>;
       if (view.ability === 'look_swap' && view.abilityPeeked && view.abilityPeekedMine !== null) {
-        return view.abilityPeeked.playerId === view.caboCalledBy
-          ? <>{name(view.caboCalledBy)} called CABO, so their cards can't be swapped. Keep them.</>
-          : <>Swap these two cards, or keep them where they are?</>;
+        // R10: any of yours with any other player's card; R29: not the CABO caller's.
+        const locked = view.caboCalledBy ? <> ({name(view.caboCalledBy)} called CABO, so not theirs)</> : null;
+        return <>Tap any card of yours and any other player's card to pick the swap{locked}, then Swap. Or keep them.</>;
       }
       if (view.ability === 'look_swap' && view.abilityPeeked) return <>Now tap one of your own cards to look at it</>;
-      if (view.ability === 'blind_swap' && pick && typeof pick === 'object') {
+      if (view.ability === 'blind_swap' && blindPick(pick) !== null) {
         return view.caboCalledBy
-          ? <>Now tap another player's card (not {name(view.caboCalledBy)}'s, they called CABO) to swap with your #{pick.blindMine + 1}</>
-          : <>Now tap another player's card to swap with your #{pick.blindMine + 1}</>;
+          ? <>Now tap another player's card (not {name(view.caboCalledBy)}'s, they called CABO) to swap with your #{blindPick(pick)! + 1}</>
+          : <>Now tap another player's card to swap with your #{blindPick(pick)! + 1}</>;
       }
       return <>{ABILITY_TEXT[view.ability!]} — or skip</>;
     case 'snap': {

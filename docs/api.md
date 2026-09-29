@@ -74,7 +74,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `PEEK_OWN` | `slot` | `ability` (7/8, or the Black King's second step) |
 | `PEEK_OTHER` | `targetId`, `slot` | `ability` (9/10, or the Black King's first step) |
 | `BLIND_SWAP` | `mySlot`, `targetId`, `slot` | `ability` (J/Q) |
-| `SWAP` | `mySlot` (must be the card you looked at) | `ability` (Black King, after both peeks) |
+| `SWAP` | `mySlot`, optional `targetId`, `slot` (default: the other player's card you looked at) | `ability` (Black King, after both peeks). Any of your cards with any other player's card. |
 | `SKIP` | none | `ability`, `give`, or your own snap streak (`snap` with `snapOnlyFor` = you) to end it |
 | `GIVE_CARD` | `mySlot` | `give` (after snapping an opponent's card) |
 
