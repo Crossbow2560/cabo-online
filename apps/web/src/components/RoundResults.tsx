@@ -1,6 +1,7 @@
-import type { PlayerView, RoomState } from '@cabo/engine';
+import { cardValue, type PlayerView, type RoomState } from '@cabo/engine';
+import { PlayingCard } from './PlayingCard';
 
-/** Shown over the felt when a round ends: winner, round scores, running totals. */
+/** Shown over the felt when a round ends: winner, everyone's revealed cards, round scores, running totals. */
 export function RoundResults({ view, room, onStart }: { view: PlayerView; room: RoomState; onStart: () => void }) {
   const result = view.result!;
   const me = view.you;
@@ -20,27 +21,36 @@ export function RoundResults({ view, room, onStart }: { view: PlayerView; room: 
         {result.reason === 'deck_exhausted' && 'The deck ran dry — all cards revealed.'}
         {result.reason === 'forfeit' && 'Last one standing — everyone else left the table.'}
       </p>
-      <table className="results__table">
-        <thead>
-          <tr>
-            <th scope="col">Player</th>
-            <th scope="col">Round</th>
-            <th scope="col">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p) => (
-            <tr key={p.id} className={result.winners.includes(p.id) ? 'results__win' : ''}>
-              <td>
+      <div className="results__head" aria-hidden>
+        <span>Player &amp; cards</span>
+        <span>Round</span>
+        <span>Total</span>
+      </div>
+      <ul className="results__list">
+        {rows.map((p) => (
+          <li key={p.id} className={`results__row ${result.winners.includes(p.id) ? 'results__row--win' : ''}`}>
+            <div className="results__who">
+              <span className="results__name">
+                {result.winners.includes(p.id) && '🏆 '}
                 {p.name}
                 {p.id === me && <span className="you-tag">(you)</span>}
-              </td>
-              <td>{result.scores[p.id]}</td>
-              <td>{total(p.id)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </span>
+              <span className="results__cards">
+                {p.slots.map((s, i) =>
+                  s?.card ? (
+                    <span key={i} className="results__card" title={`${s.card.rank === 'JOKER' ? 'Joker' : s.card.rank} = ${cardValue(s.card)}`}>
+                      <PlayingCard card={s.card} size="sm" />
+                    </span>
+                  ) : null,
+                )}
+                {!p.slots.some((s) => s?.card) && <span className="results__none">no cards</span>}
+              </span>
+            </div>
+            <span className="results__score">{result.scores[p.id]}</span>
+            <span className="results__total">{total(p.id)}</span>
+          </li>
+        ))}
+      </ul>
       {isHost ? (
         <button className="btn btn--primary" onClick={onStart} disabled={room.players.length < 2}>
           {room.players.length < 2 ? 'Need 2 players' : 'Start next round'}

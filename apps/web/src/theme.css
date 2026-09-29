@@ -1167,3 +1167,22 @@ button.pcard:disabled { opacity: 1; }
 @keyframes final-pop { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .tbar__final { animation: none; } }
 @media (max-width: 640px) { .tbar__final { font-size: 11px; padding: 2px 8px; } }
+
+/* ---------- round results: everyone's revealed hand + scores ---------- */
+.results { width: min(560px, 94%); }
+.results__head, .results__row { display: grid; grid-template-columns: minmax(0, 1fr) 3.5em 3.5em; align-items: center; gap: 8px; width: 100%; }
+.results__head { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--leather); padding: 0 8px; }
+.results__head span:not(:first-child), .results__score, .results__total { text-align: right; font-family: var(--font-display); }
+.results__head span:not(:first-child) { font-family: var(--font-body); }
+.results__list { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 4px; max-height: 46vh; overflow-y: auto; scrollbar-color: var(--leather) var(--cream); }
+.results__row { padding: 6px 8px; border-top: 2px dotted var(--leather); text-align: left; }
+.results__row--win { background: var(--sand-light); border-radius: 10px; }
+.results__who { display: grid; gap: 4px; min-width: 0; }
+.results__name { font-weight: 800; overflow-wrap: anywhere; }
+.results__cards { display: flex; flex-wrap: wrap; gap: 4px; --card-sm: clamp(28px, min(8vw, 5vh), 42px); }
+.results__card .pcard-wrap { gap: 0; }
+.results__none { font-size: 13px; color: var(--leather); font-style: italic; }
+.results__score { font-size: 20px; }
+.results__total { font-size: 16px; color: var(--leather); }
+.results__head, .results__row { grid-template-columns: minmax(0, 1fr) 4.2em 4.2em; column-gap: 10px; }
+.results__head { letter-spacing: 0.04em; }
