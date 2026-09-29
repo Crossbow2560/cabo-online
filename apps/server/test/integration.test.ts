@@ -390,6 +390,38 @@ describe('server-side bots', () => {
     expect(await host.emit('room:removeBot', { id: bot.id })).toMatchObject({ ok: false, error: 'Wait for the round to end' });
   });
 
+  it('bots get a difficulty level (intermediate by default); unknown levels are refused', async () => {
+    const { url } = await start();
+    const { bots: [host] } = await lobby(url, 1);
+    expect((await host.emit('room:addBot', { level: 'expert' })).ok).toBe(true);
+    expect(await host.emit('room:addBot', { level: 'godlike' })).toMatchObject({ ok: false, error: 'Unknown bot level' });
+    const next = roomOf(host);
+    expect((await host.emit('room:addBot')).ok).toBe(true);
+    expect((await next).players.map((p) => p.botLevel)).toEqual([null, 'expert', 'intermediate']);
+  });
+
+  it('beginner bots never snap; expert bots do', async () => {
+    const play = async (level: string) => {
+      const { url } = await start();
+      const { bots: [human] } = await lobby(url, 1);
+      for (let i = 0; i < 3; i++) await human.emit('room:addBot', { level });
+      await human.emit('room:start');
+      await human.until((v) => v.phase === 'peek');
+      await human.emit('game:action', { type: 'READY' });
+      const onView = (v: PlayerView | null) => {
+        if (!v || v.currentPlayerId !== human.id) return;
+        const move = v.phase === 'choose' ? 'DRAW_STOCK' : v.phase === 'drawn' ? 'DISCARD_DRAWN' : v.phase === 'ability' ? 'SKIP' : null;
+        if (move) void human.emit('game:action', { type: move, expectedVersion: v.version });
+      };
+      human.socket.on('game:view', onView);
+      await human.until((v) => v.phase === 'ended', 20_000);
+      return human.logs.filter((l) => /\(bot\) (snapped|tried to snap)/.test(l)).length;
+    };
+    expect(await play('beginner')).toBe(0);
+    // Experts snap every match they remember; over a whole round of four players that always happens.
+    expect(await play('expert')).toBeGreaterThan(0);
+  }, 60_000);
+
   it('removing a bot frees its seat', async () => {
     const { url } = await start();
     const { bots: [host] } = await lobby(url, 1);

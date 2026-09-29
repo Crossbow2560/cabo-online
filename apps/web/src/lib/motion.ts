@@ -93,6 +93,13 @@ function rectOf(spot: Spot): DOMRect | null {
 
 const turnAt = (spot: Spot) => turnOf(cardEl(spot) ?? heldSample(spot));
 
+/**
+ * Flyers scale from their top-left corner (transform-origin 0 0, so translate/scale line up with
+ * measured rects); a turn must still pivot on the card's centre, or it swings off course.
+ */
+const turnAbout = (r: DOMRect, deg: number) =>
+  `translate(${r.width / 2}px, ${r.height / 2}px) rotate(${deg}deg) translate(${-r.width / 2}px, ${-r.height / 2}px)`;
+
 /** A screen-space offset expressed inside a card turned by `deg` (for animating the card itself). */
 function unturn(dx: number, dy: number, deg: number): [number, number] {
   if (!deg) return [dx, dy];
@@ -278,8 +285,10 @@ function fly(f: Flight, delay: number) {
   const s = f.fromRect.width / toRect.width;
   const lift = Math.min(70, 16 + Math.hypot(dx, dy) * 0.18) * (f.arc ?? 1);
   const tilt = (dx > 0 ? -6 : 6) * (f.arc ?? 1);
-  const at = `translate(${dx}px, ${dy}px) scale(${s}) rotate(${t0}deg)`;
-  const home = `rotate(${t1}deg)`;
+  const at = `translate(${dx}px, ${dy}px) scale(${s}) ${turnAbout(toRect, t0)}`;
+  // Every keyframe uses the same function list (translate, scale, turn), so the browser interpolates
+  // each one smoothly instead of falling back to matrix interpolation, which warps turned cards.
+  const home = `translate(0px, 0px) scale(1) ${turnAbout(toRect, t1)}`;
   const rest = 'drop-shadow(0 3px 0 var(--saddle-deep))';
   const glow = 'drop-shadow(0 0 3px var(--cream)) drop-shadow(0 0 10px var(--sand)) drop-shadow(0 12px 10px var(--saddle-soft))';
   const duration = f.swap ? SWAP_MS : FLY_MS;
@@ -287,12 +296,12 @@ function fly(f: Flight, delay: number) {
     ? [
         // lift + glow in place (~750ms) so it's clear which cards are swapping...
         { transform: at, filter: rest },
-        { offset: 0.12, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18}) rotate(${t0}deg)`, filter: glow },
-        { offset: SWAP_LIFT, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18}) rotate(${t0}deg)`, filter: glow },
+        { offset: 0.12, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18}) ${turnAbout(toRect, t0)}`, filter: glow },
+        { offset: SWAP_LIFT, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18}) ${turnAbout(toRect, t0)}`, filter: glow },
         // ...then cross on opposite arcs
         {
           offset: SWAP_LIFT + (1 - SWAP_LIFT) / 2,
-          transform: `translate(${dx * 0.5}px, ${dy * 0.5 - lift * 1.4}px) scale(${((s + 1) / 2) * 1.2}) rotate(${tMid + tilt}deg)`,
+          transform: `translate(${dx * 0.5}px, ${dy * 0.5 - lift * 1.4}px) scale(${((s + 1) / 2) * 1.2}) ${turnAbout(toRect, tMid + tilt)}`,
           filter: glow,
         },
         { transform: home, filter: rest },
@@ -301,7 +310,7 @@ function fly(f: Flight, delay: number) {
         { transform: at, filter: rest },
         {
           offset: 0.5,
-          transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(${((s + 1) / 2) * 1.14}) rotate(${tMid + tilt}deg)`,
+          transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(${((s + 1) / 2) * 1.14}) ${turnAbout(toRect, tMid + tilt)}`,
           filter: 'drop-shadow(0 18px 14px var(--saddle-soft))',
         },
         { transform: home, filter: rest, ...(target ? {} : { opacity: 0 }) },
@@ -373,12 +382,12 @@ function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: n
     flyer.classList.add('flyer--peek');
     layer().appendChild(flyer);
     target.style.visibility = 'hidden';
-    const at = `translate(${r.left - view.left}px, ${r.top - view.top}px) scale(${r.width / view.width}) rotate(${turn}deg)`;
+    const at = `translate(${r.left - view.left}px, ${r.top - view.top}px) scale(${r.width / view.width}) ${turnAbout(view, turn)}`;
     const move = flyer.animate(
       [
         { transform: at },
-        { offset: 0.084, transform: 'translateY(-6px) rotate(-2deg)' },
-        { offset: 0.91, transform: 'translateY(0) rotate(1deg)' },
+        { offset: 0.084, transform: `translate(0px, -6px) scale(1) ${turnAbout(view, -2)}` },
+        { offset: 0.91, transform: `translate(0px, 0px) scale(1) ${turnAbout(view, 1)}` },
         { transform: at },
       ],
       { duration: PEEK_MS, easing: 'ease-in-out' },

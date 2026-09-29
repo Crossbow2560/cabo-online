@@ -1205,8 +1205,10 @@ button.pcard:disabled { opacity: 1; }
 
 /* ======== side seats: cards turned 90° to face their owner ======== */
 /* each slot is a landscape cell; the portrait card inside is rotated to fill it */
-.hand--turn > div { width: calc(var(--w) * 7 / 5); height: var(--w); display: grid; place-items: center; }
-.hand--turn .pcard-wrap { transform: rotate(var(--turn)); }
+.hand--turn > div { position: relative; width: calc(var(--w) * 7 / 5); height: var(--w); }
+/* centred explicitly: the portrait wrapper is taller than its landscape cell, and grid centring
+   doesn't centre an item that overflows (it would sit ~0.2w low and spill out of the seat) */
+.hand--turn .pcard-wrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) rotate(var(--turn)); }
 .hand--turn-left { --turn: 90deg; }
 .hand--turn-right { --turn: -90deg; }
 
@@ -1218,3 +1220,46 @@ button.pcard:disabled { opacity: 1; }
   --card-md: calc(var(--card-lg) * 0.89);
   --card-sm: calc(var(--card-lg) * 0.65);
 }
+
+/* ======== lobby: add-bot level menu ======== */
+.bot-menu { position: relative; }
+.bot-menu__list {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: 240px;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+.bot-menu__item {
+  display: grid;
+  gap: 1px;
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--saddle);
+  font: inherit;
+  cursor: pointer;
+}
+.bot-menu__item:hover, .bot-menu__item:focus-visible { background: var(--sand); outline: none; }
+.bot-menu__label { font-weight: 800; font-size: 15px; }
+.bot-menu__hint { font-size: 12px; font-weight: 600; color: var(--leather); }
+.bot-tag {
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--saddle);
+  border: 2px solid var(--saddle);
+  border-radius: 999px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* the posse panel clips overflow; let the menu hang below it */
+.posse:has(.bot-menu__list) { overflow: visible; }

@@ -4,7 +4,7 @@ import { createServer as createHttpServer } from 'node:http';
 import path from 'node:path';
 import express from 'express';
 import { Server } from 'socket.io';
-import type { Action, ClientAction, ClientToServer, ServerToClient, Timings } from '@cabo/engine';
+import type { Action, BotLevel, ClientAction, ClientToServer, ServerToClient, Timings } from '@cabo/engine';
 import { GameError, RoomManager } from './rooms';
 import type { SessionRecord, Store } from './store';
 
@@ -200,7 +200,11 @@ export async function createCaboServer(opts: ServerOptions) {
 
     socket.on('room:start', handle(() => rooms.start(sid)) as never);
 
-    socket.on('room:addBot', handle(() => rooms.addBot(sid)) as never);
+    socket.on('room:addBot', handle((req: { level?: unknown }) => {
+      const level = req?.level ?? 'intermediate';
+      if (typeof level !== 'string') throw new GameError('Unknown bot level');
+      return rooms.addBot(sid, level as BotLevel);
+    }) as never);
 
     socket.on('room:removeBot', handle((req: { id: string }) => {
       if (typeof req?.id !== 'string') throw new GameError('Bad bot');

@@ -55,6 +55,7 @@ These start a real server on a random port (`createCaboServer` with short timing
 - **Stale state:** a kicked player who reconnects gets `room:state null`. Players who leave stop receiving room updates.
 - **Server bots:**
   - only the host adds and removes bots, and only between rounds;
+  - levels (intermediate by default, unknown ones refused); beginners never snap, experts do;
   - removing a bot frees its seat;
   - the last human leaving closes the room;
   - a scripted human plays two full rounds against three bots, with card conservation and no refused bot moves.

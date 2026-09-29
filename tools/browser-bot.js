@@ -37,18 +37,30 @@
     el.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  window.caboBot = function caboBot(opts) {
+  // Difficulty presets (same as the server bots). `snap` is the chance of taking a snap it spots.
+  const LEVELS = {
+    beginner: { think: [3000, 5000], snap: 0, snapDelay: [2000, 2500] },
+    novice: { think: [2500, 3000], snap: 0.5, snapDelay: [1750, 2250] },
+    intermediate: { think: [1000, 2000], snap: 0.5, snapDelay: [1000, 2000] },
+    expert: { think: [750, 2000], snap: 1, snapDelay: [750, 1500] },
+  };
+
+  window.caboBot = function caboBot(opts = {}) {
     if (window.__caboBot) window.__caboBot.stop();
+    const level = opts.level ?? 'intermediate';
+    if (!LEVELS[level]) throw new Error(`level must be one of: ${Object.keys(LEVELS).join(', ')}`);
     const o = {
       name: 'Bot',
       room: '',
-      think: [700, 1800], // ms before each move, so a human can follow along
-      snap: true, // snap own cards that match the discard
-      snapDelay: [600, 1400], // reaction time, keeps snaps winnable for humans
+      level,
+      ...LEVELS[level], // think / snap / snapDelay; any of them can still be overridden
       caboAt: 8, // call CABO when all cards are known and total ≤ this
       caboAfterTurns: 12, // …or after this many own turns regardless
       ...opts,
     };
+    // `snap` may be a boolean or a probability.
+    const snapChance = o.snap === true ? 1 : o.snap === false ? 0 : Number(o.snap) || 0;
+    let rolledWindow = null;
     const log = (...a) => console.log(`[bot ${o.name}]`, ...a);
     const known = {}; // my slot index → parsed card
     let busy = false;
@@ -145,10 +157,14 @@
       const snapping = !!$('.snap-banner');
 
       if (snapping) {
-        if (!o.snap) return;
         const top = discardTop();
         const match = top && mySlots().find((s) => !s.gap && known[s.i]?.rank === top.rank);
         if (!match) return;
+        // One roll per snap window: lower levels don't always notice a match.
+        const win = `${prompt()}#${top.rank}`;
+        if (rolledWindow === win) return;
+        rolledWindow = win;
+        if (Math.random() >= snapChance) return;
         await sleep(jitter(...o.snapDelay));
         if ($('.snap-banner') && match.el.classList.contains('pcard--selectable')) {
           delete known[match.i];

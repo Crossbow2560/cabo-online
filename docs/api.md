@@ -51,7 +51,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `room:join` | `{ code }` | `{ ok, code }` | Allowed in `lobby`/`finished`. `A round is in progress` for newcomers mid-round; existing seats just reconnect. Maximum 8 players. |
 | `room:leave` | none | `{ ok }` | Mid-round this forfeits: your cards go back to the stock, and if one player remains they win. |
 | `room:start` | none | `{ ok }` | Host only, 2+ players. Starts round 1 or the next round; the dealer rotates left. |
-| `room:addBot` | none | `{ ok }` | Host only, not mid-round. Seats a server-driven bot (see [bots](bots.md)). |
+| `room:addBot` | `{ level }` | `{ ok }` | Host only, not mid-round. Seats a server-driven bot; `level` is `beginner`, `novice`, `intermediate` (default) or `expert` (see [bots](bots.md)). `Unknown bot level` otherwise. |
 | `room:removeBot` | `{ id }` | `{ ok }` | Host only, not mid-round. `No such bot` if `id` isn't a bot in the room. |
 | `game:action` | `ClientAction` | `{ ok }` | See the actions table below. Include `expectedVersion` (from the last `game:view`) to reject stale clicks. |
 | `game:snap` | `{ windowId, ownerId, slot }` | `{ ok }` | Only during the snap window. Rate-limited to 5 per second per socket. |
@@ -93,7 +93,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 - `code`, `hostId`
 - `status` (`lobby` / `playing` / `finished`), `roundNo`
 - `kickAfterMs`
-- `players[]`: `{ id, name, connected, bot, offlineSince, totalScore }`
+- `players[]`: `{ id, name, connected, bot, botLevel, offlineSince, totalScore }` (`botLevel` is `null` for humans)
 
 **`PlayerView`** (key fields):
 - `you`, `version`, `phase`, `currentPlayerId`, `dealerId`

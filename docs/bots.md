@@ -12,11 +12,22 @@ There are two kinds of bot:
 
 ## Server bots (lobby button)
 
-In the lobby, the host sees **+ Add bot** next to **Leave room**, and a **✕** on each bot's row.
-- Bots are named `Dusty (bot)`, `Calamity (bot)`, … and show **Bot** as their status.
+In the lobby, the host sees **+ Add bot** next to **Leave room**, and a **✕** on each bot's row. **+ Add bot** opens a menu of difficulty levels.
+- Bots are named `Dusty (bot)`, `Calamity (bot)`, … with their level as a tag, and show **Bot** as their status.
 - Only the host can add or remove them, and never mid-round (the server refuses with "Wait for the round to end"). The limit is the usual 8 seats.
 - Bots never host. When the last human leaves, the room closes and its bots go with it.
 - Bots are always online, so they're never auto-kicked and never hold up the peek phase.
+
+**Levels** (`BOT_PRESETS` in `apps/server/src/bot.ts`). They change speed and snapping only; the strategy below is the same at every level.
+
+| Level | Think before each move | Snaps a match it knows | Snap reaction |
+|---|---|---|---|
+| Beginner | 3–5s | never | (2–2.5s) |
+| Novice | 2.5–3s | half the time | 1.75–2.25s |
+| Intermediate (default) | 1–2s | half the time | 1–2s |
+| Expert | 0.75–2s | always | 0.75–1.5s |
+
+"Half the time" is one roll per snap window: a bot that passes doesn't try again in that window. Every level presses **Ready** 2–4s into the peek.
 
 **Fair play:** a bot decides from `redactFor(state, botId)`, the same redacted view a client gets. It also sees the events that seat would receive: public ones plus its own private peek results. It never reads the full game state.
 
@@ -36,14 +47,14 @@ In the lobby, the host sees **+ Add bot** next to **Leave room**, and a **✕** 
 | 9 / 10 | Spies an unknown opponent card. |
 | J / Q | Blind-swaps its worst known card for a known opponent card at least 3 points lower. If its worst card is ≥ 10, it gambles on an unknown opponent card instead. Otherwise it skips. |
 | Black K | Looks at an opponent card, then its own worst card, and swaps if theirs is lower. |
-| Snap window | Snaps any remembered card (its own first, else an opponent's) matching the discard, after 0.8–1.6s. |
+| Snap window | Snaps any remembered card (its own first, else an opponent's) matching the discard, subject to its level. |
 | Snapped an opponent's card | Gives its worst known card (if worth ≥ 5), else an unknown one. |
 
-Other moves wait 0.9–2s, so a human can follow along and win snap races. `botPace` in `ServerOptions` scales every delay; the tests use `0.005`.
+`botPace` in `ServerOptions` scales every delay; the tests use `0.005`.
 
 If the engine refuses a move (e.g. the table changed first), the bot falls back to the plainest legal move: discard, draw or skip. Refusals other than stale-version or too-slow are recorded in `RoomManager.botRejections`, and the integration test asserts that list stays empty.
 
-**Persistence:** each bot gets a `guest_sessions` row whose `token_hash` is `bot:<id>`. That value is never a sha256, so no client can sign in as a bot. `PgStore` uses the prefix to recognise bots when restoring rooms after a restart; the restored bots resume with empty memory. No migration is needed.
+**Persistence:** each bot gets a `guest_sessions` row whose `token_hash` is `bot:<level>:<id>`. That value is never a sha256, so no client can sign in as a bot. `PgStore` uses the prefix to recognise bots and their level when restoring rooms after a restart (an older `bot:<id>` plays at intermediate); the restored bots resume with empty memory. No migration is needed.
 
 ## Browser bots (`tools/browser-bot.js`)
 
@@ -113,13 +124,16 @@ Background tabs keep playing; nothing needs to be in front.
 caboBot({
   name: 'Bot Ana',          // nickname; keep it unique in the room (memory tracking matches on it)
   room: 'ABC123',           // room code to join; omit if the tab is already seated
-  think: [700, 1800],       // ms pause before each move, so the human can follow along
-  snap: true,               // snap its own cards that match the discard
-  snapDelay: [600, 1400],   // snap reaction time; lower = harder for the human to win races
+  level: 'expert',          // beginner | novice | intermediate (default) | expert — same presets as server bots
+  think: [700, 1800],       // optional override: ms pause before each move
+  snap: 0.5,                // optional override: true, false, or the chance of taking a snap it spots
+  snapDelay: [600, 1400],   // optional override: snap reaction time
   caboAt: 8,                // call CABO once every card is known and the total ≤ this
   caboAfterTurns: 12,       // …or after this many of its own turns, so rounds always end
 })
 ```
+
+`level` sets `think`, `snap` and `snapDelay` from the presets table above; any of the three passed explicitly wins.
 
 Calling `caboBot()` again in the same tab replaces the running bot (for example, to change options mid-game). The bot's card memory resets when it does.
 

@@ -1,6 +1,8 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import {
   applyAction,
+  BOT_LEVELS,
+  type BotLevel,
   createGame,
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -10,17 +12,13 @@ import {
   type RoomState,
   type Timings,
 } from '@cabo/engine';
-import { BotBrain } from './bot';
+import { BOT_PRESETS, BotBrain } from './bot';
 import type { GameRecord, RoomRecord, Store } from './store';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
 const BOT_NAMES = ['Dusty', 'Calamity', 'Doc', 'Sundance', 'Rattler', 'Tumbleweed', 'Buckshot', 'Belle', 'Cactus', 'Maverick'];
-/** Bots pause like a person would (ms, before `botPace` scaling), so humans can follow and win snap races. */
-const BOT_DELAY: Record<string, [number, number]> = {
-  READY: [2000, 4000],
-  SNAP: [800, 1600],
-  default: [900, 2000],
-};
+/** Everyone memorises for a few seconds; after that, a bot's level sets its pace (BOT_PRESETS). */
+const BOT_READY_DELAY: [number, number] = [2000, 4000];
 
 /** Everything the room manager needs to push to clients. */
 export interface Outbox {
@@ -33,6 +31,14 @@ export interface Outbox {
 }
 
 export class GameError extends Error {}
+
+interface Bot {
+  brain: BotBrain;
+  level: BotLevel;
+  timer: NodeJS.Timeout | null;
+  pending: Action | null;
+  version: number;
+}
 
 export const DEFAULT_KICK_AFTER_MS = 5 * 60_000;
 /** The peek phase waits for offline players to come back (e.g. a phone reconnecting), up to this long. */
@@ -68,6 +74,7 @@ export class Room {
         name: p.name,
         connected: this.connected.has(p.sessionId),
         bot: !!p.bot,
+        botLevel: p.bot ? p.botLevel ?? 'intermediate' : null,
         offlineSince: this.offlineSince.get(p.sessionId) ?? null,
         totalScore: p.totalScore,
       })),
@@ -94,7 +101,7 @@ export class RoomManager {
   /** Server-side bot players: their brain and the pending move. */
   /** Bot moves the engine refused (tests assert this stays empty). */
   readonly botRejections: string[] = [];
-  private bots = new Map<string, { brain: BotBrain; timer: NodeJS.Timeout | null; pending: Action | null; version: number }>();
+  private bots = new Map<string, Bot>();
 
   constructor(
     private store: Store,
@@ -156,7 +163,8 @@ export class RoomManager {
   }
 
   /** Host only, between rounds: seat a server-driven bot. */
-  async addBot(hostId: string): Promise<void> {
+  async addBot(hostId: string, level: BotLevel = 'intermediate'): Promise<void> {
+    if (!BOT_LEVELS.includes(level)) throw new GameError('Unknown bot level');
     const room = this.hostRoom(hostId);
     if (room.rec.players.length >= MAX_PLAYERS) throw new GameError('Room is full');
     const taken = new Set(room.rec.players.map((p) => p.name));
@@ -165,10 +173,10 @@ export class RoomManager {
     const id = randomUUID();
     // A session row keeps the room_players foreign key happy. Its token hash is not a sha256,
     // so no client can ever authenticate as a bot.
-    await this.store.createSession(id, `bot:${id}`, name);
-    room.rec.players.push({ sessionId: id, name, totalScore: 0, bot: true });
+    await this.store.createSession(id, `bot:${level}:${id}`, name);
+    room.rec.players.push({ sessionId: id, name, totalScore: 0, bot: true, botLevel: level });
     this.bySession.set(id, room.rec.code);
-    this.bots.set(id, { brain: new BotBrain(id), timer: null, pending: null, version: -1 });
+    this.bots.set(id, newBot(id, level));
     this.markOnline(room, id);
     this.out.log(`r:${room.rec.code}`, { text: `${name} joined the posse` });
     await room.persist(this.store, 'room');
@@ -333,7 +341,10 @@ export class RoomManager {
       this.cancelBot(bot);
       const action = bot.brain.decide(redactFor(st, p.sessionId));
       if (!action) continue;
-      const [lo, hi] = BOT_DELAY[action.type] ?? BOT_DELAY.default;
+      const preset = BOT_PRESETS[bot.level];
+      // Lower levels don't always notice a match (the brain won't retry this window).
+      if (action.type === 'SNAP' && Math.random() >= preset.snap) continue;
+      const [lo, hi] = action.type === 'READY' ? BOT_READY_DELAY : action.type === 'SNAP' ? preset.snapDelay : preset.think;
       bot.pending = action;
       bot.version = st.version;
       bot.timer = setTimeout(() => {
@@ -366,7 +377,7 @@ export class RoomManager {
     }
   }
 
-  private cancelBot(bot: { timer: NodeJS.Timeout | null; pending: Action | null }) {
+  private cancelBot(bot: Bot) {
     if (bot.timer) clearTimeout(bot.timer);
     bot.timer = null;
     bot.pending = null;
@@ -458,7 +469,7 @@ export class RoomManager {
         this.bySession.set(p.sessionId, rec.code);
         if (p.bot) {
           // Bots are always "online"; their card memory starts fresh.
-          this.bots.set(p.sessionId, { brain: new BotBrain(p.sessionId), timer: null, pending: null, version: -1 });
+          this.bots.set(p.sessionId, newBot(p.sessionId, p.botLevel ?? 'intermediate'));
           this.markOnline(room, p.sessionId);
         } else this.markOffline(room, p.sessionId, now); // everyone starts offline; reconnecting clears it
       }
@@ -476,3 +487,5 @@ export class RoomManager {
     for (const bot of this.bots.values()) this.cancelBot(bot);
   }
 }
+
+const newBot = (id: string, level: BotLevel): Bot => ({ brain: new BotBrain(id), level, timer: null, pending: null, version: -1 });

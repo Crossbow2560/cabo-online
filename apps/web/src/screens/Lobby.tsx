@@ -1,4 +1,5 @@
-import { MAX_PLAYERS, MIN_PLAYERS, type RoomState } from '@cabo/engine';
+import { useEffect, useRef, useState } from 'react';
+import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type RoomState } from '@cabo/engine';
 import { CopyField } from '../components/CopyField';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
@@ -7,12 +8,19 @@ import { formatCountdown, useNow } from '../lib/useNow';
 
 const MIN_ROWS = 3;
 
+const LEVEL_INFO: Record<BotLevel, { label: string; hint: string }> = {
+  beginner: { label: 'Beginner', hint: 'Slow · never snaps' },
+  novice: { label: 'Novice', hint: 'Unhurried · snaps half the time' },
+  intermediate: { label: 'Intermediate', hint: 'Steady · snaps half the time' },
+  expert: { label: 'Expert', hint: 'Quick · snaps every match it knows' },
+};
+
 export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
   room: RoomState;
   me: string;
   onStart: () => void;
   onLeave: () => void;
-  onAddBot: () => void;
+  onAddBot: (level: BotLevel) => void;
   onRemoveBot: (id: string) => void;
 }) {
   const now = useNow(1000);
@@ -20,6 +28,23 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
   const link = `${usePublicUrl()}/?room=${room.code}`;
   const enough = room.players.length >= MIN_PLAYERS;
   const emptyRows = Math.max(0, MIN_ROWS - room.players.length);
+  const [levelsOpen, setLevelsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close the level menu on an outside click or Escape.
+  useEffect(() => {
+    if (!levelsOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setLevelsOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setLevelsOpen(false);
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [levelsOpen]);
 
   return (
     <main className="screen screen--top">
@@ -43,9 +68,35 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
           </span>
           <div className="posse__actions">
             {isHost && (
-              <button className="btn btn--light btn--sm" onClick={onAddBot} disabled={room.players.length >= MAX_PLAYERS}>
-                + Add bot
-              </button>
+              <div className="bot-menu" ref={menuRef}>
+                <button
+                  className="btn btn--light btn--sm"
+                  onClick={() => setLevelsOpen((o) => !o)}
+                  disabled={room.players.length >= MAX_PLAYERS}
+                  aria-haspopup="menu"
+                  aria-expanded={levelsOpen}
+                >
+                  + Add bot
+                </button>
+                {levelsOpen && (
+                  <div className="panel bot-menu__list" role="menu">
+                    {BOT_LEVELS.map((level) => (
+                      <button
+                        key={level}
+                        role="menuitem"
+                        className="bot-menu__item"
+                        onClick={() => {
+                          setLevelsOpen(false);
+                          onAddBot(level);
+                        }}
+                      >
+                        <span className="bot-menu__label">{LEVEL_INFO[level].label}</span>
+                        <span className="bot-menu__hint">{LEVEL_INFO[level].hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             <button className="btn btn--primary btn--sm" onClick={onLeave}>
               Leave room
@@ -74,6 +125,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
                       </span>
                     )}
                     {p.id === me && <span className="you-tag">(you)</span>}
+                    {p.botLevel && <span className="bot-tag">{LEVEL_INFO[p.botLevel].label}</span>}
                   </td>
                   <td className="posse__status-col">
                     <span className={`status-dot ${p.connected ? 'status-dot--on' : ''}`} aria-hidden />

@@ -14,12 +14,18 @@ export interface SnapRequest {
   slot: number;
 }
 
+/** Server bot difficulty presets (timings and snapping; see apps/server/src/bot.ts). */
+export const BOT_LEVELS = ['beginner', 'novice', 'intermediate', 'expert'] as const;
+export type BotLevel = (typeof BOT_LEVELS)[number];
+
 export interface RoomPlayerInfo {
   id: string;
   name: string;
   connected: boolean;
   /** A server-driven bot (added by the host). */
   bot: boolean;
+  /** Set for bots. */
+  botLevel: BotLevel | null;
   /** Epoch ms when this player went offline; they are kicked after `kickAfterMs`. */
   offlineSince: number | null;
   totalScore: number;
@@ -50,7 +56,7 @@ export interface ClientToServer {
   'room:leave': (ack: (r: Ack) => void) => void;
   'room:start': (ack: (r: Ack) => void) => void;
   /** Host only, between rounds. */
-  'room:addBot': (ack: (r: Ack) => void) => void;
+  'room:addBot': (req: { level: BotLevel }, ack: (r: Ack) => void) => void;
   'room:removeBot': (req: { id: string }, ack: (r: Ack) => void) => void;
   'game:action': (action: ClientAction, ack: (r: Ack) => void) => void;
   'game:snap': (req: SnapRequest, ack: (r: Ack) => void) => void;

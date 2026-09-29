@@ -1,4 +1,21 @@
-import { cardValue, type Action, type Card, type GameEvent, type PlayerView, type Spot } from '@cabo/engine';
+import { cardValue, type Action, type BotLevel, type Card, type GameEvent, type PlayerView, type Spot } from '@cabo/engine';
+
+export interface BotPreset {
+  /** Pause before each move (ms). */
+  think: [number, number];
+  /** Chance of taking a snap it has spotted (1 = always, 0 = never). */
+  snap: number;
+  /** Reaction time before snapping (ms). */
+  snapDelay: [number, number];
+}
+
+/** Difficulty presets: how fast a bot moves and whether it snaps. Its strategy is the same at every level. */
+export const BOT_PRESETS: Record<BotLevel, BotPreset> = {
+  beginner: { think: [3000, 5000], snap: 0, snapDelay: [2000, 2500] },
+  novice: { think: [2500, 3000], snap: 0.5, snapDelay: [1750, 2250] },
+  intermediate: { think: [1000, 2000], snap: 0.5, snapDelay: [1000, 2000] },
+  expert: { think: [750, 2000], snap: 1, snapDelay: [750, 1500] },
+};
 
 /**
  * A server-side bot player. It plays only from what its seat is entitled to: its redacted

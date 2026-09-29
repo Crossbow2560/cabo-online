@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import type { GameState } from '@cabo/engine';
+import { BOT_LEVELS, type BotLevel, type GameState } from '@cabo/engine';
 
 export interface SessionRecord {
   id: string;
@@ -15,7 +15,7 @@ export interface RoomRecord {
   status: RoomStatus;
   roundNo: number;
   dealerIndex: number;
-  players: { sessionId: string; name: string; totalScore: number; bot?: boolean }[];
+  players: { sessionId: string; name: string; totalScore: number; bot?: boolean; botLevel?: BotLevel }[];
 }
 
 export interface GameRecord {
@@ -113,9 +113,9 @@ export class PgStore implements Store {
       where status <> 'closed' and updated_at > now() - interval '1 day'`;
     const out: { room: RoomRecord; game: GameRecord | null }[] = [];
     for (const r of rooms) {
-      // Bot sessions are marked by a `bot:` token hash (see RoomManager.addBot).
-      const players = await this.sql<{ session_id: string; nickname: string; total_score: number; bot: boolean }[]>`
-        select rp.session_id, s.nickname, rp.total_score, s.token_hash like 'bot:%' as bot from room_players rp
+      // Bot sessions are marked by a `bot:<level>:<id>` token hash (see RoomManager.addBot).
+      const players = await this.sql<{ session_id: string; nickname: string; total_score: number; token_hash: string }[]>`
+        select rp.session_id, s.nickname, rp.total_score, s.token_hash from room_players rp
         join guest_sessions s on s.id = rp.session_id
         where rp.room_id = ${r.id} order by rp.seat`;
       const games = await this.sql<{ id: string; round_no: number; state_snapshot: GameState }[]>`
@@ -128,7 +128,7 @@ export class PgStore implements Store {
           status: r.status,
           roundNo: r.round_no,
           dealerIndex: r.dealer_index,
-          players: players.map((p) => ({ sessionId: p.session_id, name: p.nickname, totalScore: p.total_score, bot: p.bot })),
+          players: players.map((p) => ({ sessionId: p.session_id, name: p.nickname, totalScore: p.total_score, ...botFields(p.token_hash) })),
         },
         game: games[0] ? { id: games[0].id, roomId: r.id, roundNo: games[0].round_no, state: games[0].state_snapshot } : null,
       });
@@ -139,4 +139,11 @@ export class PgStore implements Store {
   async close() {
     await this.sql.end();
   }
+}
+
+/** `bot:<level>:<id>` → bot fields (an older `bot:<id>` plays at intermediate). */
+function botFields(tokenHash: string): { bot?: boolean; botLevel?: BotLevel } {
+  if (!tokenHash.startsWith('bot:')) return {};
+  const level = tokenHash.split(':')[1] as BotLevel;
+  return { bot: true, botLevel: BOT_LEVELS.includes(level) ? level : 'intermediate' };
 }
