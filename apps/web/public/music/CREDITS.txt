@@ -1,0 +1,4 @@
+weasel-trot.mp3 — "Weasel Trot" by ShggothSlave
+https://opengameart.org/content/weasel-trot
+License: CC0 1.0 (public domain dedication)
+Trimmed (leading/trailing silence), loudness-normalised and re-encoded for looping.

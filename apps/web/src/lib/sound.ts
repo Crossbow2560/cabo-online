@@ -1,5 +1,6 @@
 /**
- * Game sounds (Web Audio). Card sounds: "Casino Audio" by Kenney (kenney.nl, CC0), in public/sounds.
+ * Game sounds and music (Web Audio). Card sounds: "Casino Audio" by Kenney (kenney.nl, CC0), in
+ * public/sounds. Music: "Weasel Trot" by ShggothSlave (opengameart.org, CC0), in public/music.
  *
  * Volumes chain master → game / music, each 0..1, saved per browser. Browsers only allow audio
  * after the player interacts with the page, so nothing plays until the first tap or key press;
@@ -55,6 +56,7 @@ export function setSoundSettings(patch: Partial<SoundSettings>) {
     /* storage unavailable: settings last for this page only */
   }
   applyVolumes();
+  syncMusic();
   listeners.forEach((l) => l());
 }
 
@@ -73,8 +75,11 @@ export function useSoundSettings(): SoundSettings {
 let ctx: AudioContext | null = null;
 let masterGain: GainNode;
 let gameGain: GainNode;
-/** Reserved for background music (not added yet). */
 let musicGain: GainNode;
+/** The music is streamed through an <audio> element (a decoded 4-minute track would be ~90MB). */
+let musicEl: HTMLAudioElement | null = null;
+/** Whether the current screen wants music (the table does); it still needs audio unlocked and volume. */
+let musicWanted = false;
 const buffers = new Map<string, AudioBuffer>();
 const loading = new Map<string, Promise<void>>();
 const lastPlayed = new Map<SoundName, number>();
@@ -117,10 +122,43 @@ function unlock() {
     applyVolumes();
     for (const files of Object.values(FILES)) files.forEach((f) => void loadFile(f));
   }
-  if (ctx.state === 'suspended') void ctx.resume();
+  if (ctx.state === 'suspended') void ctx.resume().then(syncMusic);
+  else syncMusic();
+}
+
+/** Background music on or off for the current screen (see Game). */
+export function setMusicPlaying(on: boolean) {
+  musicWanted = on;
+  syncMusic();
+}
+
+/** Play the music only when wanted, audible, allowed by the browser, and the tab is visible. */
+function syncMusic() {
+  const audible = !settings.muted && settings.master > 0 && settings.music > 0;
+  const play = musicWanted && audible && !!ctx && ctx.state === 'running' && !document.hidden;
+  if (!play) {
+    musicEl?.pause();
+    return;
+  }
+  if (!musicEl) {
+    musicEl = new Audio(`${import.meta.env.BASE_URL}music/weasel-trot.mp3`);
+    musicEl.loop = true;
+    musicEl.preload = 'auto';
+    ctx!.createMediaElementSource(musicEl).connect(musicGain);
+  }
+  if (musicEl.paused) {
+    // Ease in rather than starting at full volume.
+    const t = ctx!.currentTime;
+    musicGain.gain.cancelScheduledValues(t);
+    musicGain.gain.setValueAtTime(0, t);
+    musicGain.gain.setTargetAtTime(settings.music, t, 0.6);
+    void musicEl.play().catch((e) => console.warn('[music]', e));
+  }
 }
 if (typeof window !== 'undefined') {
   for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, unlock, { capture: true, passive: true });
+  // Pause the music in a background tab; pick it up again on return.
+  document.addEventListener('visibilitychange', syncMusic);
 }
 
 /**

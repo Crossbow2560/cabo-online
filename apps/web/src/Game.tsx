@@ -11,7 +11,7 @@ import { RoundResults } from './components/RoundResults';
 import { Seat } from './components/Seat';
 import { SoundControl } from './components/SoundControl';
 import { Icon } from './components/Icon';
-import { playSound } from './lib/sound';
+import { playSound, setMusicPlaying } from './lib/sound';
 import { Title } from './components/Title';
 import { playDeal, playMotions } from './lib/motion';
 import { useMediaQuery } from './lib/useMediaQuery';
@@ -197,6 +197,12 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const span = view.deadline ? view.deadline - deadlineStart.current.start : 0;
   const left = view.deadline ? Math.max(0, view.deadline - now) : 0;
   const frac = span > 0 ? Math.min(1, left / span) : 0;
+
+  // Background music plays at the table (volume and mute in the sound panel).
+  useEffect(() => {
+    setMusicPlaying(true);
+    return () => setMusicPlaying(false);
+  }, []);
 
   // Sound cues that aren't card movements: your turn starts; the round's cards are revealed.
   const prevCue = useRef({ myTurn: false, phase: view.phase });

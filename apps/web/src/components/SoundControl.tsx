@@ -5,7 +5,7 @@ import { Icon } from './Icon';
 const SLIDERS: { key: 'master' | 'game' | 'music'; label: string; hint?: string }[] = [
   { key: 'master', label: 'Master' },
   { key: 'game', label: 'Game', hint: 'Cards, turns, CABO' },
-  { key: 'music', label: 'Music', hint: 'No music yet' },
+  { key: 'music', label: 'Music', hint: 'Saloon piano' },
 ];
 
 /** Speaker button in the table's top bar: opens master / game / music volumes and a mute toggle. */

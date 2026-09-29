@@ -60,6 +60,7 @@ A spectator is not a player: they're tracked per room in memory (`Room.spectator
 - Card sounds are played from `lib/motion.ts`, which already knows every card movement and its timing, so a sound lands when the animation does. Non-movement cues (your turn, CABO, the reveal) come from `Game.tsx`.
 - `lib/sound.ts` uses the Web Audio API with a master gain feeding game and music gains: exact scheduling, cheap overlapping playback, and per-category volume. The audio context is created on the first tap or key press, because browsers block audio before that.
 - Clips are "Casino Audio" by Kenney (CC0), converted from Ogg to small mono MP3s (`apps/web/public/sounds`, ~160KB), since older Safari can't decode Ogg.
+- Music is "Weasel Trot" by ShggothSlave (OpenGameArt, CC0), trimmed of its silent ends, loudness-normalised and re-encoded (`apps/web/public/music`, 3MB). It streams through an `<audio>` element routed into the music gain (`createMediaElementSource`) instead of being decoded into memory: a decoded 4-minute stereo track is ~90MB. It only plays at the table, only when audible, and pauses in background tabs.
 
 ## Timers
 Defaults (`DEFAULT_TIMINGS`):
