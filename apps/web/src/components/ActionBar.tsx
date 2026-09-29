@@ -74,6 +74,15 @@ export function ActionBar({ view, pick, setPick, act, snapLeft }: {
         </div>
       );
     case 'ability':
+      // Black King, after looking at both cards: decide.
+      if (view.ability === 'look_swap' && view.abilityPeeked && view.abilityPeekedMine !== null) {
+        return (
+          <div className="actions">
+            <button className="btn btn--primary" onClick={() => act({ type: 'SWAP', mySlot: view.abilityPeekedMine! })}>Swap them</button>
+            <button className="btn btn--light" onClick={() => act({ type: 'SKIP' })}>Keep them</button>
+          </div>
+        );
+      }
       return (
         <div className="actions">
           <button className="btn btn--light" onClick={() => act({ type: 'SKIP' })}>Skip ability</button>

@@ -1073,3 +1073,57 @@ button.pcard:disabled { opacity: 1; }
   /* the title sits under the back button on narrow screens */
   .screen:has(> .back-btn) { padding-top: 52px; }
 }
+
+/* ---------- seating around the table (large screens, 3+ players) ---------- */
+.table--sides {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "left top right" "left felt right" "left mine right";
+  column-gap: clamp(8px, 1.6vw, 24px);
+}
+.table--sides .seats { grid-area: top; }
+.table--sides .felt { grid-area: felt; }
+.table--sides .mine { grid-area: mine; }
+.seats-side { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: clamp(10px, 2vh, 24px); min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.seats-side--left { grid-area: left; }
+.seats-side--right { grid-area: right; }
+.seats-side .seat { transform: none; }
+.seats:empty { display: none; }
+
+/* ---------- card sizes: bigger opponents, and let tablets use their space ---------- */
+.table-screen {
+  --card-lg: clamp(48px, min(9vw, 9vh), 120px);
+  --card-md: clamp(44px, min(7.5vw, 8vh), 100px);
+  --card-sm: clamp(30px, min(5.5vw, 5.8vh), 70px);
+}
+/* portrait tablets: width, not height, was the limit — scale up */
+@media (min-width: 641px) and (orientation: portrait) {
+  .table-screen {
+    --card-lg: clamp(56px, min(14vw, 9vh), 130px);
+    --card-md: clamp(48px, min(11vw, 8vh), 110px);
+    --card-sm: clamp(34px, min(8vw, 5.8vh), 80px);
+  }
+  .seat__plate { font-size: 16px; }
+  .prompt-strip { font-size: 18px; }
+}
+/* phone sizes restated after the base (same specificity, so order matters) */
+@media (max-width: 640px) {
+  .table-screen {
+    --card-lg: clamp(44px, min(17vw, 9vh), 76px);
+    --card-md: clamp(38px, min(13vw, 7.5vh), 62px);
+    --card-sm: clamp(24px, min(9.5vw, 5.4vh), 44px);
+  }
+}
+@media (max-width: 640px) and (max-height: 680px) {
+  .table-screen {
+    --card-lg: clamp(40px, min(17vw, 8vh), 76px);
+    --card-md: clamp(34px, min(13vw, 6.4vh), 62px);
+    --card-sm: clamp(22px, min(9vw, 4.4vh), 40px);
+  }
+}
+@media (max-height: 520px) and (min-width: 560px) {
+  .table-screen { --card-lg: clamp(34px, 12vh, 60px); --card-md: clamp(30px, 10.5vh, 54px); --card-sm: clamp(20px, 7.6vh, 38px); }
+}
+/* seats on the sides leave a wide but shorter middle: prompt goes beside the piles */
+.table--sides .felt { flex-direction: row; gap: clamp(14px, 2.5vw, 32px); }
+.table--sides .prompt-strip { max-width: 300px; text-align: left; }

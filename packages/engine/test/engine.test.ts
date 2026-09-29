@@ -212,11 +212,20 @@ describe('abilities', () => {
     expect(s.players[2].slots[2]).toEqual(c('7H'));
   });
 
-  it('R8/R10: black king is look then optional swap; red king has no ability', () => {
+  it('R8/R10: black king = look at theirs, look at yours, then optional swap; red king has no ability', () => {
     let s = drawAndDiscard('KS');
     expect(err(s, { type: 'SWAP', playerId: 'p1', mySlot: 0 })).toBe('invalid');
+    expect(err(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 })).toBe('invalid'); // theirs first
     s = ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
     expect(s.phase).toMatchObject({ kind: 'ability', peeked: { playerId: 'p0', slot: 0 } });
+    expect(err(s, { type: 'SWAP', playerId: 'p1', mySlot: 3 })).toBe('invalid'); // must look at own first
+    const r = run(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 });
+    if (!r.ok) throw new Error(r.message);
+    expect(r.events.find((e) => e.to)?.reveal).toEqual({ playerId: 'p1', slot: 3, card: c('10H') });
+    s = r.state;
+    expect(s.phase).toMatchObject({ kind: 'ability', peekedMine: 3 });
+    expect(redactFor(s, 'p2').abilityPeekedMine).toBe(3);
+    expect(err(s, { type: 'SWAP', playerId: 'p1', mySlot: 1 })).toBe('invalid'); // only the card you looked at
     s = ok(s, { type: 'SWAP', playerId: 'p1', mySlot: 3 });
     expect(s.players[1].slots[3]).toEqual(c('2S'));
     expect(s.players[0].slots[0]).toEqual(c('10H'));
@@ -227,9 +236,10 @@ describe('abilities', () => {
     expect(joker.phase.kind).toBe('snap');
   });
 
-  it('black king: can decline the swap', () => {
+  it('black king: can decline the swap after looking at both', () => {
     let s = drawAndDiscard('KC');
     s = ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
+    s = ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 1 });
     s = ok(s, { type: 'SKIP', playerId: 'p1' });
     expect(s.phase.kind).toBe('snap');
     expect(s.players[0].slots[0]).toEqual(c('2S'));

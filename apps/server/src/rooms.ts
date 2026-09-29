@@ -27,6 +27,9 @@ export interface Outbox {
 export class GameError extends Error {}
 
 export const DEFAULT_KICK_AFTER_MS = 5 * 60_000;
+/** The peek phase waits for offline players to come back (e.g. a phone reconnecting), up to this long. */
+export const DEFAULT_PEEK_HOLD_MS = 60_000;
+const PEEK_HOLD_STEP_MS = 5_000;
 
 export class Room {
   connected = new Set<string>();
@@ -34,6 +37,8 @@ export class Room {
   offlineSince = new Map<string, number>();
   kickTimers = new Map<string, NodeJS.Timeout>();
   game: GameRecord | null = null;
+  /** When the current round's peek phase began (to cap how long it waits for offline players). */
+  peekStartedAt = 0;
   timer: NodeJS.Timeout | null = null;
   private persistChain: Promise<void> = Promise.resolve();
 
@@ -85,6 +90,7 @@ export class RoomManager {
     private kickAfterMs = DEFAULT_KICK_AFTER_MS,
     /** Dev/testing only: deal every round from this seed (see CABO_SEED). */
     private fixedSeed: number | null = null,
+    private peekHoldMs = DEFAULT_PEEK_HOLD_MS,
   ) {}
 
   roomOf(sessionId: string): Room | null {
@@ -193,6 +199,7 @@ export class RoomManager {
     room.rec.dealerIndex = room.rec.roundNo === 0 ? 0 : (room.rec.dealerIndex + 1) % n;
     room.rec.roundNo++;
     room.rec.status = 'playing';
+    room.peekStartedAt = Date.now();
     room.game = {
       id: randomUUID(),
       roomId: room.rec.id,
@@ -256,7 +263,18 @@ export class RoomManager {
     if (deadline == null || room.rec.status !== 'playing') return;
     room.timer = setTimeout(() => {
       room.timer = null;
-      if (room.game) this.apply(room, { type: 'TICK' });
+      if (!room.game) return;
+      // Don't start play while someone who hasn't seen their cards is offline (reconnecting):
+      // give them a few more seconds, up to peekHoldMs from the start of the round.
+      const st = room.game.state;
+      const waiting = st.players.some((p) => !p.ready && !room.connected.has(p.id));
+      if (st.phase.kind === 'peek' && waiting && Date.now() < room.peekStartedAt + this.peekHoldMs) {
+        st.deadline = Date.now() + PEEK_HOLD_STEP_MS;
+        for (const p of room.rec.players) this.sendView(room, p.sessionId);
+        this.schedule(room);
+        return;
+      }
+      this.apply(room, { type: 'TICK' });
     }, Math.max(0, deadline - Date.now()) + 10);
   }
 
@@ -311,6 +329,7 @@ export class RoomManager {
         if (game.state.deadline !== null) game.state.deadline = Math.max(game.state.deadline, now + 15_000);
       }
       this.rooms.set(rec.code, room);
+      room.peekStartedAt = now;
       for (const p of rec.players) {
         this.bySession.set(p.sessionId, rec.code);
         this.markOffline(room, p.sessionId, now); // everyone starts offline; reconnecting clears it

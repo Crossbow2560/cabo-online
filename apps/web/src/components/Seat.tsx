@@ -1,11 +1,12 @@
 import type { PlayerView, RoomState } from '@cabo/engine';
 import { formatCountdown } from '../lib/useNow';
 import { Hand, type SlotState } from './Hand';
+import type { Orient } from './PlayingCard';
 
 type SeatPlayer = PlayerView['players'][number];
 
 /** An opponent around the table: name plate + mini hand. */
-export function Seat({ player, view, room, now, arc, state, onCard }: {
+export function Seat({ player, view, room, now, arc, state, onCard, orient = 'top' }: {
   player: SeatPlayer;
   view: PlayerView;
   room: RoomState;
@@ -14,6 +15,8 @@ export function Seat({ player, view, room, now, arc, state, onCard }: {
   arc: number;
   state: (slot: number) => SlotState;
   onCard: (slot: number) => void;
+  /** Where this seat is relative to the viewer (its hand is turned to face them). */
+  orient?: Orient;
 }) {
   const info = room.players.find((p) => p.id === player.id);
   const turn = view.currentPlayerId === player.id && view.phase !== 'ended' && view.phase !== 'peek';
@@ -31,7 +34,7 @@ export function Seat({ player, view, room, now, arc, state, onCard }: {
           <span className="away"> · away {formatCountdown(info.offlineSince + room.kickAfterMs - now)}</span>
         )}
       </div>
-      <Hand slots={player.slots} size="sm" state={state} onCard={onCard} ownerName={player.name} ownerId={player.id} />
+      <Hand slots={player.slots} size="sm" state={state} onCard={onCard} ownerName={player.name} ownerId={player.id} orient={orient} />
     </div>
   );
 }

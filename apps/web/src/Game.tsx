@@ -11,7 +11,9 @@ import { RoundResults } from './components/RoundResults';
 import { Seat } from './components/Seat';
 import { Title } from './components/Title';
 import { playDeal, playMotions } from './lib/motion';
+import { useMediaQuery } from './lib/useMediaQuery';
 import { useNow } from './lib/useNow';
+import type { Orient } from './components/PlayingCard';
 
 type Call = <T>(fn: (ack: (r: Ack<T>) => void) => void) => Promise<Ack<T>>;
 
@@ -49,7 +51,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const myTurn = view.currentPlayerId === me;
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? 'a player who left';
 
-  useEffect(() => setPick(null), [view.phase, view.currentPlayerId, view.abilityPeeked]);
+  useEffect(() => setPick(null), [view.phase, view.currentPlayerId, view.abilityPeeked, view.abilityPeekedMine]);
 
   // Card animations: play queued moves once the new state is on screen; deal at round start.
   const dealtRound = useRef<number | null>(null);
@@ -100,7 +102,8 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
       switch (view.ability) {
         case 'peek_own': return mine;
         case 'peek_other': return !mine;
-        case 'look_swap': return view.abilityPeeked ? mine : !mine;
+        // R10: theirs first, then one of yours; then Swap / Keep buttons (no more taps).
+        case 'look_swap': return !view.abilityPeeked ? !mine : view.abilityPeekedMine === null && mine;
         case 'blind_swap': return mine || (pick !== null && typeof pick === 'object');
       }
     }
@@ -124,7 +127,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
           return;
         case 'look_swap':
           if (!view.abilityPeeked && !mine) act({ type: 'PEEK_OTHER', targetId: ownerId, slot });
-          else if (view.abilityPeeked && mine) act({ type: 'SWAP', mySlot: slot });
+          else if (view.abilityPeeked && view.abilityPeekedMine === null && mine) act({ type: 'PEEK_OWN', slot });
           return;
         case 'blind_swap':
           if (mine) setPick({ blindMine: slot });
@@ -138,7 +141,11 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
     const sv = view.players.find((p) => p.id === ownerId)?.slots[slot];
     const rev = revealed[`${ownerId}:${slot}`];
     // Black King: keep the looked-at card visible while the player decides whether to swap.
-    const deciding = myTurn && view.abilityPeeked?.playerId === ownerId && view.abilityPeeked.slot === slot;
+    // Black King: both cards the player looked at stay visible while they decide whether to swap.
+    const deciding =
+      myTurn &&
+      ((view.abilityPeeked?.playerId === ownerId && view.abilityPeeked.slot === slot) ||
+        (ownerId === me && view.abilityPeekedMine === slot));
     const live = rev && deciding ? rev.card : null;
     return {
       card: sv?.card ?? live,
@@ -147,6 +154,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
       selected:
         (ownerId === me && typeof pick === 'object' && pick !== null && pick.blindMine === slot) ||
         (view.abilityPeeked?.playerId === ownerId && view.abilityPeeked.slot === slot) ||
+        (ownerId === me && view.ability === 'look_swap' && view.abilityPeekedMine === slot) ||
         (view.give?.targetId === ownerId && view.give.slot === slot),
     };
   };
@@ -177,6 +185,28 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
     ? [...view.players.slice(meIdx + 1), ...view.players.slice(0, Math.max(0, meIdx))]
     : [];
   const mePlayer = view.players[meIdx];
+
+  // Seating: on large screens with 3+ players, opponents sit around the table clockwise from my left
+  // (left side bottom→top, across the top, right side top→bottom). Phones keep everyone on top.
+  const roomy = useMediaQuery('(min-width: 900px) and (min-height: 560px)');
+  const sides = roomy && opponents.length >= 2;
+  const perSide = !sides ? 0 : opponents.length >= 5 ? 2 : 1;
+  const leftSeats = opponents.slice(0, perSide).reverse();
+  const topSeats = opponents.slice(perSide, opponents.length - perSide);
+  const rightSeats = opponents.slice(opponents.length - perSide);
+  const seat = (p: (typeof opponents)[number], orient: Orient, arc = 0) => (
+    <Seat
+      key={p.id}
+      player={p}
+      view={view}
+      room={room}
+      now={now}
+      arc={arc}
+      orient={orient}
+      state={slotState(p.id)}
+      onCard={(slot) => onCard(p.id, slot)}
+    />
+  );
   const myTurnNow = myTurn && view.phase !== 'ended' && view.phase !== 'peek';
 
   return (
@@ -192,30 +222,20 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         </button>
       </header>
 
-      <section className={`table ${view.phase === 'snap' ? 'table--snap' : ''}`} aria-label="Card table">
+      <section className={`table ${view.phase === 'snap' ? 'table--snap' : ''} ${sides ? 'table--sides' : ''}`} aria-label="Card table">
         {caboBanner && (
           <div className="cabo-banner" role="status">
             CABO!<small>{name(caboBanner)} called it — last round</small>
           </div>
         )}
+        {sides && <div className="seats-side seats-side--left">{leftSeats.map((p) => seat(p, 'left'))}</div>}
         <div className="seats">
-          {opponents.map((p, i) => {
-            const mid = (opponents.length - 1) / 2;
-            const arc = opponents.length > 1 ? Math.abs(i - mid) / mid : 0;
-            return (
-              <Seat
-                key={p.id}
-                player={p}
-                view={view}
-                room={room}
-                now={now}
-                arc={arc}
-                state={slotState(p.id)}
-                onCard={(slot) => onCard(p.id, slot)}
-              />
-            );
+          {topSeats.map((p, i) => {
+            const mid = (topSeats.length - 1) / 2;
+            return seat(p, 'top', topSeats.length > 1 ? Math.abs(i - mid) / mid : 0);
           })}
         </div>
+        {sides && <div className="seats-side seats-side--right">{rightSeats.map((p) => seat(p, 'right'))}</div>}
 
         <div className="felt">
           <div className={`prompt-strip ${myTurnNow || view.phase === 'snap' ? 'prompt-strip--hot' : ''}`}>
@@ -326,7 +346,8 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
       return myTurn ? <>Keep it (tap one of your cards) or discard it</> : <>{cur} is eyeing a drawn card…</>;
     case 'ability':
       if (!myTurn) return <>{cur} is using a special card</>;
-      if (view.ability === 'look_swap' && view.abilityPeeked) return <>Tap one of your cards to swap with it — or skip</>;
+      if (view.ability === 'look_swap' && view.abilityPeeked && view.abilityPeekedMine !== null) return <>Swap these two cards, or keep them where they are?</>;
+      if (view.ability === 'look_swap' && view.abilityPeeked) return <>Now tap one of your own cards to look at it</>;
       if (view.ability === 'blind_swap' && pick && typeof pick === 'object') return <>Now tap another player's card to swap with your #{pick.blindMine + 1}</>;
       return <>{ABILITY_TEXT[view.ability!]} — or skip</>;
     case 'snap':

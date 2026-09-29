@@ -41,6 +41,8 @@ export interface ServerOptions {
   kickAfterMs?: number;
   /** Dev/testing only: fixed deal seed. Never set in production. */
   fixedSeed?: number | null;
+  /** How long the peek phase may wait for offline players (default 60s). */
+  peekHoldMs?: number;
   /** R28: max snaps per socket per second. */
   snapRateLimit?: number;
   webDist?: string;
@@ -71,6 +73,7 @@ export async function createCaboServer(opts: ServerOptions) {
     opts.timings,
     opts.kickAfterMs,
     opts.fixedSeed ?? null,
+    opts.peekHoldMs,
   );
   const restored = await rooms.restore();
   if (restored) console.log(`restored ${restored} room(s)`);

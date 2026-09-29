@@ -191,10 +191,17 @@ class Ctx {
       }
       case 'PEEK_OWN': {
         const ph = this.expectPhase('ability');
-        if (ph.ability !== 'peek_own') reject('invalid', 'Wrong ability');
+        // R10: a Black King also lets you look at one of your own cards, after the other player's.
+        const kingStep = ph.ability === 'look_swap' && !!ph.peeked && ph.peekedMine === undefined;
+        if (ph.ability !== 'peek_own' && !kingStep) reject('invalid', ph.ability === 'look_swap' ? "Look at another player's card first" : 'Wrong ability');
         const card = this.ownCard(me, a.slot);
         this.log(`${me.name} looked at their own slot ${a.slot + 1}`, { peek: [{ spot: slotAt(me.id, a.slot), by: me.id }] });
         this.private(me.id, `Your slot ${a.slot + 1} is ${cardLabel(card)}`, { playerId: me.id, slot: a.slot, card });
+        if (kingStep) {
+          ph.peekedMine = a.slot;
+          s.deadline = this.now + s.timings.choiceMs;
+          return;
+        }
         return this.openSnapWindow();
       }
       case 'PEEK_OTHER': {
@@ -215,6 +222,8 @@ class Ctx {
       case 'SWAP': {
         const ph = this.expectPhase('ability');
         if (ph.ability !== 'look_swap' || !ph.peeked) reject('invalid', 'Look at a card first');
+        if (ph.peekedMine === undefined) reject('invalid', 'Look at one of your own cards first');
+        if (a.mySlot !== ph.peekedMine) reject('invalid', 'Swap the card you looked at');
         const target = this.player(ph.peeked!.playerId);
         this.swap(me, a.mySlot, target, ph.peeked!.slot);
         return this.openSnapWindow();

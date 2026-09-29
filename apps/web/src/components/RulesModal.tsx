@@ -48,7 +48,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             <li><span className="badge">7</span><span className="badge">8</span>Look at one of your own cards.</li>
             <li><span className="badge">9</span><span className="badge">10</span>Look at another player’s card.</li>
             <li><span className="badge">J</span><span className="badge">Q</span>Blind swap one of your cards with another player’s.</li>
-            <li><span className="badge">K♠</span><span className="badge">K♣</span>Look at another player’s card, then choose whether to swap it with one of yours.</li>
+            <li><span className="badge">K♠</span><span className="badge">K♣</span>Look at another player’s card and one of your own, then choose whether to swap them.</li>
           </ul>
 
           <h3>Snapping</h3>

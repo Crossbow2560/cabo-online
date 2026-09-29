@@ -15,8 +15,8 @@ afterEach(async () => {
   for (const s of servers.splice(0)) await s.close();
 });
 
-async function start(store: Store = new MemoryStore(), kickAfterMs?: number) {
-  const server = await createCaboServer({ store, timings: TIMINGS, kickAfterMs });
+async function start(store: Store = new MemoryStore(), kickAfterMs?: number, extra: { timings?: object; peekHoldMs?: number } = {}) {
+  const server = await createCaboServer({ store, timings: { ...TIMINGS, ...extra.timings }, kickAfterMs, peekHoldMs: extra.peekHoldMs });
   const port = await server.listen(0);
   servers.push(server);
   return { server, port, url: `http://localhost:${port}` };
@@ -125,6 +125,21 @@ describe('server', () => {
     store.down = false;
     expect((await fetch(`${url}/api/session`, { headers: { authorization: `Bearer ${sess.token}` } })).status).toBe(200);
   });
+
+  it('the peek phase waits for a player who is offline (e.g. reconnecting) before play starts', async () => {
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const { url, server } = await start(new MemoryStore(), 60_000, { timings: { peekMs: 200 }, peekHoldMs: 3_000 });
+    const { bots, code } = await lobby(url, 2);
+    expect((await bots[0].emit('room:start')).ok).toBe(true);
+    await bots[0].until((v) => v.phase === 'peek');
+    bots[1].socket.disconnect();
+    await sleep(900); // well past the 200ms peek timer
+    expect(server.rooms.rooms.get(code)!.game!.state.phase.kind).toBe('peek');
+    const back = await bot(url, '', { id: bots[1].id, token: bots[1].token });
+    const v = await back.until((x) => x.phase === 'peek');
+    expect(v.players.find((p) => p.id === bots[1].id)!.slots.filter((s) => s?.card).length).toBe(2); // sees their 2 cards
+    await back.until((x) => x.phase === 'choose', 8_000); // then play starts normally
+  }, 15_000);
 
   it('rejects sockets without a valid session', async () => {
     const { url } = await start();

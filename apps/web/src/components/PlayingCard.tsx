@@ -129,8 +129,26 @@ function cardName(card: Card) {
   return `${card.rank} of ${suits[card.suit!]}`;
 }
 
-/** Grid position for slot i: 0-1 top row, 2-3 bottom ("nearest") row, penalty cards in extra columns. */
-export function slotPosition(i: number) {
-  if (i < 4) return { gridRow: Math.floor(i / 2) + 1, gridColumn: (i % 2) + 1 };
-  return { gridRow: (i % 2) + 1, gridColumn: 3 + Math.floor((i - 4) / 2) };
+/** Which way a hand faces on screen: yours, or an opponent across / left / right of the table. */
+export type Orient = 'self' | 'top' | 'left' | 'right';
+
+/** The owner's own layout: slots 0-1 far row, 2-3 near row, penalty cards in extra columns. */
+export function slotCoords(i: number) {
+  if (i < 4) return { r: Math.floor(i / 2), c: i % 2 };
+  return { r: i % 2, c: 2 + Math.floor((i - 4) / 2) };
+}
+
+/**
+ * Grid position for slot i, turned to face the viewer. An opponent across the table is rotated
+ * 180° (their "1 2 / 3 4" reads "4 3 / 2 1"); side seats are rotated 90° with their near row
+ * toward the centre of the table. `maxC` = the owner's last column index.
+ */
+export function slotPosition(i: number, orient: Orient = 'self', maxC = 1) {
+  const { r, c } = slotCoords(i);
+  const [row, col] =
+    orient === 'top' ? [1 - r, maxC - c]
+    : orient === 'left' ? [c, 1 - r]
+    : orient === 'right' ? [maxC - c, r]
+    : [r, c];
+  return { gridRow: row + 1, gridColumn: col + 1 };
 }

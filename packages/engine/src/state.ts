@@ -8,7 +8,7 @@ export interface Timings {
 }
 
 export const DEFAULT_TIMINGS: Timings = {
-  peekMs: 15_000,
+  peekMs: 20_000,
   turnMs: 60_000,
   choiceMs: 15_000,
   snapMs: 3_500,
@@ -34,8 +34,9 @@ export type Phase =
   | {
       kind: 'ability';
       ability: Ability;
-      /** look_swap only: set after the peek step (R10). */
+      /** look_swap (R10): the other player's card they looked at, then their own card they looked at. */
       peeked?: { playerId: string; slot: number };
+      peekedMine?: number;
     }
   | { kind: 'snap'; windowId: number }
   | { kind: 'give'; snapperId: string; targetId: string; slot: number }

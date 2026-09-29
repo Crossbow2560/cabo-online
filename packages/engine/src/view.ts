@@ -23,6 +23,8 @@ export interface PlayerView {
   ability: Ability | null;
   /** look_swap: which card the current player looked at (card value comes via private event only). */
   abilityPeeked: { playerId: string; slot: number } | null;
+  /** look_swap: which of their own cards they looked at next. */
+  abilityPeekedMine: number | null;
   snapWindowId: number | null;
   give: { snapperId: string; targetId: string; slot: number } | null;
   result: { reason: string; scores: Record<string, number>; winners: string[] } | null;
@@ -59,6 +61,7 @@ export function redactFor(s: GameState, viewerId: string): PlayerView {
     drawnCard: ph.kind === 'drawn' && current.id === viewerId ? ph.card : null,
     ability: ph.kind === 'ability' ? ph.ability : null,
     abilityPeeked: ph.kind === 'ability' ? ph.peeked ?? null : null,
+    abilityPeekedMine: ph.kind === 'ability' ? ph.peekedMine ?? null : null,
     snapWindowId: ph.kind === 'snap' ? ph.windowId : null,
     give: ph.kind === 'give' ? { snapperId: ph.snapperId, targetId: ph.targetId, slot: ph.slot } : null,
     result: ph.kind === 'ended' ? { reason: ph.reason, scores: ph.scores, winners: ph.winners } : null,
