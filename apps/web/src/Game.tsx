@@ -208,12 +208,18 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
     />
   );
   const myTurnNow = myTurn && view.phase !== 'ended' && view.phase !== 'peek';
+  // Your turn: tap the stock to draw, or the discard to take it (then tap one of your cards).
+  const canDraw = myTurn && view.phase === 'choose' && pick !== 'take_discard';
+  const canTake = myTurn && view.phase === 'choose' && !!view.discardTop && !!mePlayer?.slots.some(Boolean);
 
   return (
     <main className="table-screen">
       <header className="tbar">
         <Title size="sm" />
         <div className="tbar__round">Round {room.roundNo}</div>
+        {view.caboCalledBy && view.phase !== 'ended' && (
+          <div className="tbar__final" title={`CABO called by ${name(view.caboCalledBy)}`}>Final round</div>
+        )}
         {view.deadline && view.phase !== 'ended' && <TimerRing frac={frac} seconds={Math.ceil(left / 1000)} />}
         <div className="tbar__spacer" />
         <button className="btn btn--light btn--sm tbar__icon" onClick={onRules} aria-label="How to play">?</button>
@@ -239,16 +245,22 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
 
         <div className="felt">
           <div className={`prompt-strip ${myTurnNow || view.phase === 'snap' ? 'prompt-strip--hot' : ''}`}>
-            <Prompt view={view} pick={pick} name={name} />
-            {view.caboCalledBy && view.phase !== 'ended' && (
-              <span className="prompt-strip__cabo">CABO called by {name(view.caboCalledBy)} — final round</span>
-            )}
+            <span className="prompt-strip__text">
+              <Prompt view={view} pick={pick} name={name} />
+            </span>
           </div>
           <Toasts log={log} now={now} />
           <div className="piles">
             <div className="pile">
               <div className="pile__stack">
-                <PlayingCard card={null} size="md" spot="stock" />
+                <PlayingCard
+                  card={null}
+                  size="md"
+                  spot="stock"
+                  selectable={canDraw}
+                  onClick={canDraw ? () => act({ type: 'DRAW_STOCK' }) : undefined}
+                  title="Draw from the stock"
+                />
               </div>
               <span className="pile__label">Stock · {view.stockCount}</span>
             </div>
@@ -256,15 +268,23 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
               {view.phase === 'ability' && view.ability && (
                 <span className="ability-badge" key={view.version}>{ABILITY_BADGE[view.ability]}</span>
               )}
-              <PlayingCard card={view.discardTop} gap={!view.discardTop} size="md" spot="discard" />
+              <PlayingCard
+                card={view.discardTop}
+                gap={!view.discardTop}
+                size="md"
+                spot="discard"
+                selectable={canTake}
+                selected={pick === 'take_discard'}
+                onClick={canTake ? () => setPick(pick === 'take_discard' ? null : 'take_discard') : undefined}
+                title={pick === 'take_discard' ? 'Cancel taking the discard' : 'Take the discard'}
+              />
               <span className="pile__label">Discard</span>
             </div>
-            {view.drawnCard && (
-              <div className="pile pile--drawn">
-                <PlayingCard card={view.drawnCard} size="md" spot={`held:${me}`} />
-                <span className="pile__label">You drew</span>
-              </div>
-            )}
+            {/* Always rendered (hidden when empty) so drawing never shifts the stock and discard. */}
+            <div className={`pile pile--drawn ${view.drawnCard ? '' : 'pile--placeholder'}`} aria-hidden={!view.drawnCard}>
+              <PlayingCard card={view.drawnCard} size="md" spot={view.drawnCard ? `held:${me}` : undefined} />
+              <span className="pile__label">You drew</span>
+            </div>
           </div>
         </div>
 
@@ -340,8 +360,8 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
       return <>Memorise your two nearest cards — they're face-up for now.</>;
     case 'choose':
       if (!myTurn) return <>{cur}'s turn</>;
-      if (pick === 'take_discard') return <>Tap one of your cards to swap with the discard</>;
-      return <>Your turn — draw, take the discard, or call CABO</>;
+      if (pick === 'take_discard') return <>Tap one of your cards to swap with the discard (tap the discard again to cancel)</>;
+      return <>Your turn — tap the stock to draw, or the discard to take it</>;
     case 'drawn':
       return myTurn ? <>Keep it (tap one of your cards) or discard it</> : <>{cur} is eyeing a drawn card…</>;
     case 'ability':

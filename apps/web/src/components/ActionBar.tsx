@@ -51,17 +51,10 @@ export function ActionBar({ view, pick, setPick, act, snapLeft }: {
 
   switch (view.phase) {
     case 'choose':
+      // Drawing / taking the discard happens by tapping the piles; only Cabo is a button.
       return (
         <div className="actions">
-          <button className="btn btn--primary" onClick={() => act({ type: 'DRAW_STOCK' })}>Draw</button>
-          <button
-            className={`btn ${pick === 'take_discard' ? 'btn--cream' : 'btn--light'}`}
-            onClick={() => setPick(pick === 'take_discard' ? null : 'take_discard')}
-            disabled={!hasCards}
-          >
-            {pick === 'take_discard' ? 'Cancel' : 'Take discard'}
-          </button>
-          <button className="btn btn--light" onClick={() => act({ type: 'CALL_CABO' })} disabled={!!view.caboCalledBy}>
+          <button className="btn btn--primary" onClick={() => act({ type: 'CALL_CABO' })} disabled={!!view.caboCalledBy || pick !== null}>
             Call CABO
           </button>
         </div>

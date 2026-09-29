@@ -1127,3 +1127,43 @@ button.pcard:disabled { opacity: 1; }
 /* seats on the sides leave a wide but shorter middle: prompt goes beside the piles */
 .table--sides .felt { flex-direction: row; gap: clamp(14px, 2.5vw, 32px); }
 .table--sides .prompt-strip { max-width: 300px; text-align: left; }
+
+/* ======== stable layout: messages and notices never move the cards ======== */
+/* the drawn-card spot is always reserved, so drawing doesn't re-centre the piles */
+.pile--placeholder { visibility: hidden; }
+/* the action area keeps a fixed width whatever it shows (buttons, SNAP! banner, nothing) */
+.actions, .actions:empty { display: flex; width: 210px; min-width: 0; flex-shrink: 0; }
+.actions:empty { visibility: hidden; }
+.snap-banner { width: 100%; max-width: none; }
+/* prompt: reserve two lines; in the side-by-side layouts it has a fixed width */
+.prompt-strip { min-height: calc(2 * 1.35em + 14px); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.35; }
+.table--sides .prompt-strip { width: 300px; max-width: none; align-items: flex-start; }
+@media (max-height: 720px) and (min-width: 900px) { .prompt-strip { width: 340px; max-width: none; } }
+/* seat captions and the CABO chip don't change a seat's width */
+.seat__sub { width: 0; min-width: 100%; display: flex; justify-content: center; white-space: nowrap; overflow: visible; }
+.seat__plate { position: relative; }
+.seat__plate .chip-cabo { position: absolute; top: -9px; right: -12px; }
+@media (max-width: 640px) {
+  .actions, .actions:empty { width: 128px; }
+  .actions .btn { white-space: normal; }
+  .prompt-strip { min-height: calc(2 * 1.3em + 10px); line-height: 1.3; }
+}
+@media (max-height: 520px) and (min-width: 560px) {
+  .actions, .actions:empty { width: 132px; }
+  .prompt-strip { min-height: calc(2 * 1.3em + 8px); }
+}
+/* prompt: a fixed-height box (text clamped), so its wording never moves the piles below it */
+.prompt-strip { --prompt-lines: 2; height: calc(var(--prompt-lines) * 1.35em + 14px); min-height: 0; overflow: hidden; }
+.prompt-strip__text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--prompt-lines); overflow: hidden; }
+.table--sides .prompt-strip, .felt[style*="row"] .prompt-strip { height: auto; }
+@media (max-height: 720px) and (min-width: 900px) { .prompt-strip { height: auto; } }
+@media (max-width: 640px) { .prompt-strip { --prompt-lines: 3; height: calc(3 * 1.3em + 10px); } }
+@media (max-height: 520px) and (min-width: 560px) { .prompt-strip { height: auto; } }
+.tbar__final {
+  font-weight: 800; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+  color: var(--saddle); background: var(--sand); border: 2px solid var(--saddle); border-radius: 999px; padding: 3px 10px;
+  animation: final-pop 420ms cubic-bezier(.3,1.6,.5,1) both;
+}
+@keyframes final-pop { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .tbar__final { animation: none; } }
+@media (max-width: 640px) { .tbar__final { font-size: 11px; padding: 2px 8px; } }
