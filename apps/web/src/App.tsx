@@ -102,7 +102,11 @@ export function App() {
         }}
       />
     );
-  } else content = <Connected session={session} onSignOut={signOut} onRules={() => setRulesOpen(true)} />;
+  } else {
+    content = (
+      <Connected session={session} onSignOut={signOut} onRules={() => setRulesOpen(true)} onBack={() => setScreen('landing')} />
+    );
+  }
 
   return (
     <>
@@ -113,7 +117,12 @@ export function App() {
   );
 }
 
-function Connected({ session, onSignOut, onRules }: { session: Session; onSignOut: () => void; onRules: () => void }) {
+function Connected({ session, onSignOut, onRules, onBack }: {
+  session: Session;
+  onSignOut: () => void;
+  onRules: () => void;
+  onBack: () => void;
+}) {
   const [socket, setSocket] = useState<CaboSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const [room, setRoom] = useState<RoomState | null>(null);
@@ -214,6 +223,7 @@ function Connected({ session, onSignOut, onRules }: { session: Session; onSignOu
           onCreate={() => call<{ code: string }>((ack) => socket.emit('room:create', ack))}
           onJoin={(code) => call<{ code: string }>((ack) => socket.emit('room:join', { code }, ack))}
           onChangeName={onSignOut}
+          onBack={onBack}
         />
       ) : room.status === 'lobby' ? (
         <Lobby

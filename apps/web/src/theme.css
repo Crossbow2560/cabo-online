@@ -1065,3 +1065,11 @@ button.pcard:disabled { opacity: 1; }
   0%, 55% { outline: 3px solid var(--cream); outline-offset: 1px; box-shadow: 0 0 0 4px var(--sand), 0 0 10px 2px var(--sand); }
   100% { outline: 3px solid transparent; outline-offset: 1px; }
 }
+
+/* ---- back button (top-left of a screen) ---- */
+.back-btn { position: absolute; top: 14px; left: 14px; z-index: 2; }
+@media (max-width: 640px) {
+  .back-btn { top: 10px; left: 10px; font-size: 12px; padding: 5px 10px; }
+  /* the title sits under the back button on narrow screens */
+  .screen:has(> .back-btn) { padding-top: 52px; }
+}
