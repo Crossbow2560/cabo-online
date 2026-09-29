@@ -650,3 +650,78 @@ describe('pause and end game', () => {
     expect(await fresh).toMatchObject({ roundNo: 1, final: null });
   }, 30_000);
 });
+
+describe('spectators', () => {
+  type RS = import('@cabo/engine').RoomState | null;
+  /** The next room:state for this socket that satisfies `pred`. */
+  const roomWhere = (b: Bot, pred: (r: RS) => boolean) =>
+    new Promise<RS>((res) => {
+      const on = (r: RS) => {
+        if (!pred(r)) return;
+        b.socket.off('room:state', on);
+        res(r);
+      };
+      b.socket.on('room:state', on);
+    });
+  const hiddenView = (v: PlayerView) => v.players.every((p) => p.slots.every((x) => !x || x.card === null)) && v.drawnCard === null;
+
+  it('can watch a round in progress: public view only, no moves, not a player', async () => {
+    const { url } = await start();
+    const { bots, code } = await lobby(url, 2);
+    const v = await startAndReady(bots);
+    const cur = bots.find((b) => b.id === v.currentPlayerId)!;
+    const fan = await bot(url, 'Fan');
+    const r = await fan.emit('room:spectate', { code });
+    expect(r).toMatchObject({ ok: true, code });
+    const view = await fan.until((x) => x.phase === 'choose');
+    expect(view.players.map((p) => p.id)).not.toContain(fan.id);
+    expect(hiddenView(view)).toBe(true);
+    expect(fan.logs.length).toBeGreaterThanOrEqual(0);
+
+    // Sees the play as it happens, but never a drawn card.
+    await cur.emit('game:action', { type: 'DRAW_STOCK' });
+    const drawn = await fan.until((x) => x.phase === 'drawn');
+    expect(hiddenView(drawn)).toBe(true);
+    expect(await fan.emit('game:action', { type: 'DISCARD_DRAWN' })).toMatchObject({ ok: false });
+    expect(await fan.emit('room:pause')).toMatchObject({ ok: false });
+    expect(await fan.emit('room:join', { code })).toMatchObject({ ok: false, error: 'A round is in progress' });
+  });
+
+  it('shows up in the room state; leaving, reconnecting and taking a seat behave', async () => {
+    const { url } = await start();
+    const { bots: [host], code } = await lobby(url, 1);
+    const fan = await bot(url, 'Fan');
+    const seen = roomWhere(host, (r) => !!r?.spectators.length);
+    await fan.emit('room:spectate', { code });
+    expect((await seen)!.spectators).toEqual([{ id: fan.id, name: 'Fan' }]);
+
+    // A reload keeps watching: the new connection is put straight back in the room.
+    fan.socket.disconnect();
+    const back = roomWhere(host, (r) => !!r?.spectators.some((x) => x.id === fan.id));
+    const again = await bot(url, 'Fan', { id: fan.id, token: fan.token });
+    await back;
+    expect((await fetch(`${url}/api/session`, { headers: { authorization: `Bearer ${fan.token}` } }).then((x) => x.json())).roomCode).toBe(code);
+
+    // Joining the lobby as a player ends watching.
+    const joined = roomWhere(host, (r) => !!r?.players.some((p) => p.id === fan.id));
+    expect((await again.emit('room:join', { code })).ok).toBe(true);
+    expect((await joined)!.spectators).toEqual([]);
+  });
+
+  it("stop watching, and when the room closes spectators are told there's nothing left", async () => {
+    const { url } = await start();
+    const { bots: [host], code } = await lobby(url, 1);
+    const a = await bot(url, 'A');
+    const b = await bot(url, 'B');
+    await a.emit('room:spectate', { code });
+    await b.emit('room:spectate', { code });
+    const left = roomWhere(a, (r) => r === null);
+    expect((await a.emit('room:leave')).ok).toBe(true);
+    expect(await left).toBeNull();
+
+    const closed = roomWhere(b, (r) => r === null);
+    await host.emit('room:leave');
+    expect(await closed).toBeNull();
+    expect(await b.emit('room:spectate', { code })).toMatchObject({ ok: false, error: 'Room not found' });
+  });
+});

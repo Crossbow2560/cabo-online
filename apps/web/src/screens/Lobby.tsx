@@ -16,13 +16,15 @@ const LEVEL_INFO: Record<BotLevel, { label: string; hint: string }> = {
   expert: { label: 'Expert', hint: "Quick · You ain't leavin' the table"},
 };
 
-export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
+export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, watching = false }: {
   room: RoomState;
   me: string;
   onStart: () => void;
   onLeave: () => void;
   onAddBot: (level: BotLevel) => void;
   onRemoveBot: (id: string) => void;
+  /** Watching without a seat. */
+  watching?: boolean;
 }) {
   const now = useNow(1000);
   const isHost = room.hostId === me;
@@ -73,7 +75,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
 
       <h2 className="greeting lobby__heading">
         <Icon name="law-star" className="lobby__star" />
-        {isHost ? 'Create Room' : 'Join Room'}
+        {isHost ? 'Create Room' : watching ? 'Watching' : 'Join Room'}
         <Icon name="law-star" className="lobby__star" />
       </h2>
 
@@ -86,6 +88,11 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
         <div className="posse__head">
           <span className="posse__title">
             Posse <span className="posse__count">({room.players.length}/{MAX_PLAYERS})</span>
+            {room.spectators.length > 0 && (
+              <span className="posse__watchers" title={room.spectators.map((s) => s.name).join(', ')}>
+                {' '}· 👁 {room.spectators.length}
+              </span>
+            )}
           </span>
           <div className="posse__actions">
             {isHost && (
@@ -121,7 +128,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
               </div>
             )}
             <button className="btn btn--primary btn--sm" onClick={onLeave}>
-              Leave room
+              {watching ? 'Stop watching' : 'Leave room'}
             </button>
           </div>
         </div>
@@ -186,7 +193,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
           </>
         ) : (
           <button className="btn btn--primary btn--lg" disabled>
-            Waiting for the host…
+            {watching ? 'Watching — waiting for the host…' : 'Waiting for the host…'}
           </button>
         )}
       </div>

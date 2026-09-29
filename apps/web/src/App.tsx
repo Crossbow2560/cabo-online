@@ -206,7 +206,8 @@ function Connected({ session, onSignOut, onRules, onBack }: {
       return r;
     });
 
-  const inRoom = room && room.players.some((p) => p.id === session.sessionId);
+  const watching = !!room?.spectators.some((s) => s.id === session.sessionId);
+  const inRoom = room && (watching || room.players.some((p) => p.id === session.sessionId));
   const leave = () =>
     call((ack) => socket.emit('room:leave', ack)).then((r) => {
       if (r.ok) {
@@ -225,6 +226,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           initialCode={urlCode}
           onCreate={() => call<{ code: string }>((ack) => socket.emit('room:create', ack))}
           onJoin={(code) => call<{ code: string }>((ack) => socket.emit('room:join', { code }, ack))}
+          onSpectate={(code) => call<{ code: string }>((ack) => socket.emit('room:spectate', { code }, ack))}
           onChangeName={onSignOut}
           onBack={onBack}
         />
@@ -236,6 +238,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           onLeave={leave}
           onAddBot={(level) => call((ack) => socket.emit('room:addBot', { level }, ack))}
           onRemoveBot={(id) => call((ack) => socket.emit('room:removeBot', { id }, ack))}
+          watching={watching}
         />
       ) : view ? (
         <Game

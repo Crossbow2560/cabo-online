@@ -46,6 +46,9 @@ export const DEFAULT_KICK_AFTER_MS = 5 * 60_000;
 export const DEFAULT_SNAP_GRACE_MS = 1_500;
 /** Reported reaction times below this aren't believed (no human taps faster). */
 export const MIN_REACTION_MS = 120;
+export const MAX_SPECTATORS = 20;
+/** A spectator whose connection drops keeps their place this long (e.g. a page reload). */
+export const SPECTATOR_GRACE_MS = 60_000;
 /** The peek phase waits for offline players to come back (e.g. a phone reconnecting), up to this long. */
 export const DEFAULT_PEEK_HOLD_MS = 60_000;
 const PEEK_HOLD_STEP_MS = 5_000;
@@ -67,6 +70,8 @@ interface SnapBatch {
 
 export class Room {
   connected = new Set<string>();
+  /** Watching without a seat: sessionId → nickname. In memory only. */
+  spectators = new Map<string, string>();
   /** Mid-round pause (not persisted: a restart resumes play). */
   paused: { byId: string; byName: string; at: number } | null = null;
   /** Final standings of the last game ended by the host, until the next deal. */
@@ -105,6 +110,7 @@ export class Room {
         offlineSince: this.offlineSince.get(p.sessionId) ?? null,
         totalScore: p.totalScore,
       })),
+      spectators: [...this.spectators].map(([id, name]) => ({ id, name })),
       paused: this.paused ? { byId: this.paused.byId, byName: this.paused.byName } : null,
       final: this.final,
     };
@@ -127,6 +133,8 @@ export class Room {
 export class RoomManager {
   readonly rooms = new Map<string, Room>();
   private bySession = new Map<string, string>(); // sessionId -> room code
+  private watching = new Map<string, string>(); // spectator sessionId -> room code
+  private spectatorTimers = new Map<string, NodeJS.Timeout>();
   /** Server-side bot players: their brain and the pending move. */
   /** Bot moves the engine refused (tests assert this stays empty). */
   readonly botRejections: string[] = [];
@@ -150,8 +158,55 @@ export class RoomManager {
     return code ? this.rooms.get(code) ?? null : null;
   }
 
+  /** The room a session is watching (not seated in). */
+  spectatingOf(sessionId: string): Room | null {
+    const code = this.watching.get(sessionId);
+    return code ? this.rooms.get(code) ?? null : null;
+  }
+
+  /** Watch a room by code, at any stage. Spectators see only public information. */
+  spectate(session: { id: string; nickname: string }, rawCode: string): Room {
+    const code = String(rawCode ?? '').trim().toUpperCase();
+    const room = this.rooms.get(code);
+    if (!room || room.rec.status === 'closed') throw new GameError('Room not found');
+    if (this.roomOf(session.id)) throw new GameError('Leave your current room first');
+    if (!room.spectators.has(session.id) && room.spectators.size >= MAX_SPECTATORS) throw new GameError('Too many spectators');
+    const current = this.spectatingOf(session.id);
+    if (current && current !== room) this.stopSpectating(session.id);
+    room.spectators.set(session.id, session.nickname);
+    this.watching.set(session.id, code);
+    this.spectatorOnline(session.id, true);
+    this.broadcastRoom(room);
+    this.sendView(room, session.id);
+    return room;
+  }
+
+  /** Leaving as a spectator. Returns whether they were watching. */
+  stopSpectating(sessionId: string): boolean {
+    const room = this.spectatingOf(sessionId);
+    this.watching.delete(sessionId);
+    this.spectatorOnline(sessionId, true); // clears any pending removal
+    if (!room) return false;
+    room.spectators.delete(sessionId);
+    this.out.view(sessionId, null);
+    this.out.detach(sessionId, room.rec.code);
+    this.broadcastRoom(room);
+    return true;
+  }
+
+  /** A spectator's connection dropped (removed after a grace period) or came back. */
+  spectatorOnline(sessionId: string, online: boolean) {
+    const t = this.spectatorTimers.get(sessionId);
+    if (t) clearTimeout(t);
+    this.spectatorTimers.delete(sessionId);
+    if (!online && this.watching.has(sessionId)) {
+      this.spectatorTimers.set(sessionId, setTimeout(() => this.stopSpectating(sessionId), SPECTATOR_GRACE_MS));
+    }
+  }
+
   async create(session: { id: string; nickname: string }): Promise<Room> {
     if (this.roomOf(session.id)) throw new GameError('Leave your current room first');
+    this.stopSpectating(session.id);
     let code: string;
     do code = Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
     while (this.rooms.has(code));
@@ -178,6 +233,8 @@ export class RoomManager {
     if (!room || room.rec.status === 'closed') throw new GameError('Room not found');
     const current = this.roomOf(session.id);
     if (current && current !== room) throw new GameError('Leave your current room first');
+    if (!room.has(session.id) && room.rec.status === 'playing') throw new GameError('A round is in progress');
+    this.stopSpectating(session.id); // taking a seat ends watching
     if (!room.has(session.id)) {
       // R27: nobody joins a round in progress; only existing seats may reconnect.
       if (room.rec.status === 'playing') throw new GameError('A round is in progress');
@@ -230,6 +287,7 @@ export class RoomManager {
 
   /** Leaving mid-round forfeits your hand; play carries on without you (or ends if one player is left). */
   async leave(sessionId: string): Promise<void> {
+    if (this.stopSpectating(sessionId)) return;
     const room = this.roomOf(sessionId);
     if (!room) return;
     await this.dropPlayer(room, sessionId, 'left the game');
@@ -275,6 +333,8 @@ export class RoomManager {
       }
       room.rec.players = [];
       room.rec.status = 'closed';
+      // Nothing left to watch.
+      for (const id of [...room.spectators.keys()]) this.stopSpectating(id);
       if (room.timer) clearTimeout(room.timer);
       this.rooms.delete(room.rec.code);
     } else if (room.rec.hostId === sessionId) {
@@ -410,6 +470,7 @@ export class RoomManager {
   private afterChange(room: Room) {
     this.broadcastRoom(room);
     for (const p of room.rec.players) this.sendView(room, p.sessionId);
+    for (const id of room.spectators.keys()) this.sendView(room, id); // public view: no seat, no cards
     this.schedule(room);
     this.scheduleBots(room);
   }
@@ -585,6 +646,12 @@ export class RoomManager {
     room.resolvingSnaps = true;
     try {
       for (const e of [...b.entries].sort((x, y) => x.at - y.at || x.order - y.order)) {
+        // An earlier snap may already have closed the window (or ended the round): the rest were too slow.
+        const ph = room.game?.state.phase;
+        if (ph?.kind !== 'snap' || ph.windowId !== b.windowId) {
+          this.out.log(`s:${e.playerId}`, { to: e.playerId, text: 'Too slow — someone snapped first' });
+          continue;
+        }
         try {
           this.apply(room, { type: 'SNAP', playerId: e.playerId, windowId: b.windowId, ownerId: e.ownerId, slot: e.slot, at: e.at });
         } catch (err) {
@@ -679,6 +746,7 @@ export class RoomManager {
       for (const t of room.kickTimers.values()) clearTimeout(t);
     }
     for (const bot of this.bots.values()) this.cancelBot(bot);
+    for (const t of this.spectatorTimers.values()) clearTimeout(t);
   }
 }
 

@@ -48,6 +48,8 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const seenLog = useRef(log.at(-1)?.id ?? 0);
   const now = useNow(200);
   const me = view.you;
+  // Watching without a seat: everyone sits around the table, nothing is tappable.
+  const spectator = !view.players.some((p) => p.id === me);
   const myTurn = view.currentPlayerId === me;
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? 'a player who left';
 
@@ -96,7 +98,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const mySnap = snapStatus && snapStatus.id === view.snapWindowId ? snapStatus.status : null;
   useEffect(() => {
     const id = view.snapWindowId;
-    if (id === null) return;
+    if (id === null || spectator) return;
     const left = view.snapMs - (performance.now() - snapWin.current.seenAt);
     const t = window.setTimeout(() => {
       setSnapStatus((s) => (s?.id === id ? s : { id, status: 'over' }));
@@ -118,7 +120,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   /** Which cards are a valid tap right now — mirrors onCard. */
   const canTap = (ownerId: string, slot: number): boolean => {
     const s = view.players.find((p) => p.id === ownerId)?.slots[slot];
-    if (!s) return false;
+    if (!s || spectator) return false;
     const mine = ownerId === me;
     if (view.phase === 'snap') return mySnap === null;
     if (view.phase === 'give') return view.give?.snapperId === me && mine;
@@ -249,7 +251,8 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         )}
         {view.deadline && view.phase !== 'ended' && !room.paused && <TimerRing frac={frac} seconds={Math.ceil(left / 1000)} />}
         <div className="tbar__spacer" />
-        {room.status === 'playing' && !room.paused && (
+        {spectator && <div className="tbar__watching">Watching</div>}
+        {room.status === 'playing' && !room.paused && !spectator && (
           <button
             className="btn btn--light btn--sm tbar__icon"
             onClick={() => call((ack) => socket.emit('room:pause', ack))}
@@ -261,9 +264,15 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
           </button>
         )}
         <button className="btn btn--light btn--sm tbar__icon" onClick={onRules} aria-label="How to play">?</button>
-        <button className="btn btn--primary btn--sm" onClick={() => setConfirmLeave(true)} aria-label="Leave game">
-          Leave<span className="hide-phone"> game</span>
-        </button>
+        {spectator ? (
+          <button className="btn btn--primary btn--sm" onClick={onLeave}>
+            Stop<span className="hide-phone"> watching</span>
+          </button>
+        ) : (
+          <button className="btn btn--primary btn--sm" onClick={() => setConfirmLeave(true)} aria-label="Leave game">
+            Leave<span className="hide-phone"> game</span>
+          </button>
+        )}
       </header>
 
       <section className={`table ${view.phase === 'snap' ? 'table--snap' : ''} ${sides ? 'table--sides' : ''}`} aria-label="Card table">
@@ -364,9 +373,11 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
               <p className="paused__by">
                 {room.paused.byId === me ? 'You paused the game.' : `${room.paused.byName} paused the game.`} Timers are stopped.
               </p>
-              <button className="btn btn--primary" onClick={() => call((ack) => socket.emit('room:resume', ack))} autoFocus>
-                Resume
-              </button>
+              {!spectator && (
+                <button className="btn btn--primary" onClick={() => call((ack) => socket.emit('room:resume', ack))} autoFocus>
+                  Resume
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -415,9 +426,10 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
   const me = view.you;
   const myTurn = view.currentPlayerId === me;
   const cur = name(view.currentPlayerId);
+  const spectator = !view.players.some((p) => p.id === me);
   switch (view.phase) {
     case 'peek':
-      return <>Memorise your two nearest cards — they're face-up for now.</>;
+      return spectator ? <>Everyone is memorising their two nearest cards…</> : <>Memorise your two nearest cards — they're face-up for now.</>;
     case 'choose':
       if (!myTurn) return <>{cur}'s turn</>;
       if (pick === 'take_discard') return <>Tap one of your cards to swap with the discard (tap the discard again to cancel)</>;

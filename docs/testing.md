@@ -68,6 +68,10 @@ These start a real server on a random port (`createCaboServer` with short timing
   - pausing is refused during a snap window;
   - a bot's pending move is cancelled while paused and it carries on after;
   - only the host can end the game, only between rounds; everyone gets the final standings, totals reset, and a new game starts clean.
+- **Spectators:**
+  - can watch mid-round with a view that has no cards (not even a drawn one), and can't act, pause or join mid-round;
+  - appear in the room state, keep watching across a reconnect, and become a player by joining the lobby;
+  - are told the room is gone when they stop watching or it closes.
 - **Persistence:** a round in progress survives a server restart, with both `MemoryStore` and (when `TEST_DATABASE_URL` is set) `PgStore`.
 
 ## What isn't automated

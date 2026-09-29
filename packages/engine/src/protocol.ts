@@ -47,6 +47,8 @@ export interface RoomState {
   roundNo: number;
   kickAfterMs: number;
   players: RoomPlayerInfo[];
+  /** People watching without a seat. They get the public view only (every hand face-down). */
+  spectators: { id: string; name: string }[];
   /** Mid-round pause: timers and bots are frozen and no moves are accepted until someone resumes. */
   paused: { byId: string; byName: string } | null;
   /** The previous game's final standings (set when the host ends a game; cleared on the next deal). */
@@ -67,6 +69,8 @@ export interface ClientToServer {
   'room:create': (ack: (r: Ack<{ code: string }>) => void) => void;
   'room:join': (req: { code: string }, ack: (r: Ack<{ code: string }>) => void) => void;
   'room:leave': (ack: (r: Ack) => void) => void;
+  /** Watch a room without a seat (any time, even mid-round). `room:leave` stops watching. */
+  'room:spectate': (req: { code: string }, ack: (r: Ack<{ code: string }>) => void) => void;
   'room:start': (ack: (r: Ack) => void) => void;
   /** Host only, between rounds: finish the game, show final standings, back to the lobby. */
   'room:end': (ack: (r: Ack) => void) => void;

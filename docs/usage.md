@@ -7,6 +7,8 @@
 3. Friends open the link (the code is pre-filled), or tap **Join room** and type the code.
 4. The host presses **Start game** once there are 2–8 players. Short of players? The host can press **+ Add bot** in the lobby and pick a level: Beginner, Novice, Intermediate or Expert (**✕** removes one). Bots play at a human pace from only what their seat can see. See [bots](bots.md).
 
+**Watching:** tap **Join room**, enter the code and press **👁 Just watch** to follow a game without a seat, even one already under way. You see the table as it plays out with every hand face-down (no one's cards, not even a drawn one), plus the log and the scores. **Stop watching** takes you back. Players see how many are watching (👁) in the lobby. If a watcher's connection drops they keep their place for a minute, so a reload goes straight back to the table.
+
 The same browser profile is always the same player. To test alone, use private windows or different browsers, or add `?profile=<name>` to the URL (e.g. `/?room=ABC123&profile=p2`), which keeps a separate player per name in one browser. To play against bots, see [bots](bots.md).
 
 ## Playing a round

@@ -49,6 +49,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 |---|---|---|---|
 | `room:create` | none | `{ ok, code }` | Six-character code (no 0/O/1/I). The creator is host and seat 0. |
 | `room:join` | `{ code }` | `{ ok, code }` | Allowed in `lobby`/`finished`. `A round is in progress` for newcomers mid-round; existing seats just reconnect. Maximum 8 players. |
+| `room:spectate` | `{ code }` | `{ ok, code }` | Watch a room without a seat, at any stage (max 20 watchers). The watcher gets `room:state` and a `game:view` with no seat (every card face-down until the reveal) and public log events only. Not allowed while seated somewhere. `room:join` in the lobby turns a watcher into a player. |
 | `room:leave` | none | `{ ok }` | Mid-round this forfeits: your cards go back to the stock, and if one player remains they win. |
 | `room:start` | none | `{ ok }` | Host only, 2+ players. Starts round 1 or the next round; the dealer rotates left. |
 | `room:end` | none | `{ ok }` | Host only, between rounds (`Finish the round first` otherwise). Sets `RoomState.final`, resets totals and round number, back to `lobby`; everyone's `game:view` becomes `null`. |
@@ -98,6 +99,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 - `status` (`lobby` / `playing` / `finished`), `roundNo`
 - `kickAfterMs`
 - `players[]`: `{ id, name, connected, bot, botLevel, offlineSince, totalScore }` (`botLevel` is `null` for humans)
+- `spectators`: `{ id, name }[]`
 - `paused`: `{ byId, byName } | null`
 - `final`: `{ standings: { id, name, total }[], winners, rounds } | null`, the last game's final totals (lowest first), until the next deal
 

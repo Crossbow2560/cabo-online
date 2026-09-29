@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
 
-export function Rooms({ nickname, initialCode, onCreate, onJoin, onChangeName, onBack }: {
+export function Rooms({ nickname, initialCode, onCreate, onJoin, onSpectate, onChangeName, onBack }: {
   nickname: string;
   initialCode: string;
   onCreate: () => void;
   onJoin: (code: string) => void;
+  /** Watch the room without taking a seat. */
+  onSpectate: (code: string) => void;
   onChangeName: () => void;
   onBack: () => void;
 }) {
@@ -50,12 +52,21 @@ export function Rooms({ nickname, initialCode, onCreate, onJoin, onChangeName, o
                 Join
               </button>
             </div>
+            <button
+              type="button"
+              className="btn btn--cream btn--sm watch-btn"
+              disabled={code.length !== 6}
+              onClick={() => onSpectate(code)}
+              title="Watch the game without taking a seat — works mid-round too"
+            >
+              <span aria-hidden>👁</span> Just watch
+            </button>
           </form>
         ) : (
           <button className="btn btn--light tile" onClick={() => setJoining(true)}>
             <Icon name="saloon-doors" className="tile__icon" />
             <span className="tile__label">Join room</span>
-            <span>Got a code? Mosey on in.</span>
+            <span>Got a code? Mosey on in — or just watch.</span>
           </button>
         )}
       </div>

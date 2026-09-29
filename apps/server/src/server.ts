@@ -116,7 +116,8 @@ export async function createCaboServer(opts: ServerOptions) {
     }
     if (!s) return res.status(401).json({ error: 'Unknown session' });
     const room = rooms.roomOf(s.id);
-    res.json({ sessionId: s.id, nickname: s.nickname, roomCode: room?.rec.code ?? null });
+    const watching = rooms.spectatingOf(s.id);
+    res.json({ sessionId: s.id, nickname: s.nickname, roomCode: room?.rec.code ?? watching?.rec.code ?? null });
   });
 
   if (opts.webDist && existsSync(opts.webDist)) {
@@ -155,10 +156,16 @@ export async function createCaboServer(opts: ServerOptions) {
 
     // Always tell a (re)connecting client where it stands, so it never shows a stale table.
     const existing = rooms.roomOf(sid);
+    const watching = existing ? null : rooms.spectatingOf(sid);
     if (existing) {
       socket.join(`r:${existing.rec.code}`);
       rooms.setConnected(sid, true); // broadcasts room:state, including to this socket
       rooms.sendView(existing, sid);
+    } else if (watching) {
+      socket.join(`r:${watching.rec.code}`);
+      rooms.spectatorOnline(sid, true);
+      rooms.broadcastRoom(watching); // includes this socket
+      rooms.sendView(watching, sid);
     } else {
       socket.emit('room:state', null);
       socket.emit('game:view', null);
@@ -195,8 +202,15 @@ export async function createCaboServer(opts: ServerOptions) {
       return { code: room.rec.code };
     }) as never);
 
+    socket.on('room:spectate', handle((req: { code: string }) => {
+      const room = rooms.spectate(session, req?.code);
+      socket.join(`r:${room.rec.code}`);
+      rooms.broadcastRoom(room);
+      return { code: room.rec.code };
+    }) as never);
+
     socket.on('room:leave', handle(async () => {
-      const room = rooms.roomOf(sid);
+      const room = rooms.roomOf(sid) ?? rooms.spectatingOf(sid);
       await rooms.leave(sid);
       if (room) socket.leave(`r:${room.rec.code}`);
     }) as never);
@@ -239,7 +253,10 @@ export async function createCaboServer(opts: ServerOptions) {
 
     socket.on('disconnect', async () => {
       const others = await io.in(`s:${sid}`).fetchSockets();
-      if (others.length === 0) rooms.setConnected(sid, false);
+      if (others.length === 0) {
+        rooms.setConnected(sid, false);
+        rooms.spectatorOnline(sid, false);
+      }
     });
   });
 

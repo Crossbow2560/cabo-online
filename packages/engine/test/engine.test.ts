@@ -101,6 +101,17 @@ describe('deal & peek', () => {
     expect(v.players.find((p) => p.id === 'p1')!.slots.every((x) => x!.card === null)).toBe(true);
   });
 
+  it('a spectator (not seated) sees no card at all until the reveal, not even a drawn one', () => {
+    let s = game();
+    const hidden = (v: ReturnType<typeof redactFor>) => v.players.every((p) => p.slots.every((x) => !x || x.card === null)) && v.drawnCard === null;
+    expect(hidden(redactFor(s, 'spectator'))).toBe(true); // peek phase: nobody's cards
+    for (const p of s.players) s = ok(s, { type: 'READY', playerId: p.id });
+    const cur = s.players[s.currentIndex].id;
+    s = ok(s, { type: 'DRAW_STOCK', playerId: cur });
+    expect(redactFor(s, cur).drawnCard).not.toBeNull();
+    expect(hidden(redactFor(s, 'spectator'))).toBe(true);
+  });
+
   it('R26: READY is not version-checked (players ready up concurrently)', () => {
     let s = game();
     const v0 = s.version;
