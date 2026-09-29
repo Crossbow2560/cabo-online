@@ -1,4 +1,2 @@
-weasel-trot.mp3 — "Weasel Trot" by ShggothSlave
-https://opengameart.org/content/weasel-trot
-License: CC0 1.0 (public domain dedication)
+background.mp3 — background music supplied by the project owner (2026-09-29).
 Trimmed (leading/trailing silence), loudness-normalised and re-encoded for looping.

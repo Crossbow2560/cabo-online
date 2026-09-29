@@ -1,6 +1,6 @@
 /**
  * Game sounds and music (Web Audio). Card sounds: "Casino Audio" by Kenney (kenney.nl, CC0), in
- * public/sounds. Music: "Weasel Trot" by ShggothSlave (opengameart.org, CC0), in public/music.
+ * public/sounds. Music: public/music/background.mp3 (see CREDITS.txt there).
  *
  * Volumes chain master → game / music, each 0..1, saved per browser. Browsers only allow audio
  * after the player interacts with the page, so nothing plays until the first tap or key press;
@@ -76,7 +76,7 @@ let ctx: AudioContext | null = null;
 let masterGain: GainNode;
 let gameGain: GainNode;
 let musicGain: GainNode;
-/** The music is streamed through an <audio> element (a decoded 4-minute track would be ~90MB). */
+/** The music is streamed through an <audio> element (a decoded 3-minute track would be ~65MB). */
 let musicEl: HTMLAudioElement | null = null;
 /** Whether the current screen wants music (the table does); it still needs audio unlocked and volume. */
 let musicWanted = false;
@@ -141,7 +141,7 @@ function syncMusic() {
     return;
   }
   if (!musicEl) {
-    musicEl = new Audio(`${import.meta.env.BASE_URL}music/weasel-trot.mp3`);
+    musicEl = new Audio(`${import.meta.env.BASE_URL}music/background.mp3`);
     musicEl.loop = true;
     musicEl.preload = 'auto';
     ctx!.createMediaElementSource(musicEl).connect(musicGain);

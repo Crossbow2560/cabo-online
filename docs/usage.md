@@ -59,7 +59,7 @@ The same browser profile is always the same player. To test alone, use private w
 
 The speaker button in the top bar (between pause and **?**) opens the sound settings: **Master**, **Game** and **Music** volumes, and **Mute all**. Settings are saved in this browser.
 - Game sounds follow the cards: a shuffle when a round is dealt, a slide when a card is drawn, a soft place when a card lands, a shove when two cards swap or a wrong snap is pushed back, and a fan when a card is lifted to be looked at. There's also a short chip click when your turn starts, a clatter when someone calls CABO, and a fan as the round's cards are revealed.
-- **Music:** a honky-tonk saloon piano loop plays while you're at the table. The **Music** slider sets its volume (0 turns it off). It pauses while the tab is in the background and stops when you leave the table.
+- **Music:** a background tune loops while you're at the table. The **Music** slider sets its volume (0 turns it off). It pauses while the tab is in the background and stops when you leave the table.
 - Browsers only allow sound after you've tapped or pressed a key on the page, so the first few moments may be silent. Sounds are skipped while the tab is in the background.
 
 ## Pausing and ending a game

@@ -37,7 +37,7 @@
 │           │                    (PUBLIC_URL), useNow.ts, useMediaQuery.ts
 │           └── assets/icons/    game-icons.net SVGs (CC BY 3.0), fill = currentColor
 │       └── public/sounds/       card sounds: Kenney "Casino Audio" (CC0), as MP3
-│       └── public/music/        background loop: "Weasel Trot" by ShggothSlave (CC0), see CREDITS.txt
+│       └── public/music/        background.mp3 (looped at the table), see CREDITS.txt
 ├── tools/browser-bot.js         in-page bot that joins a room and plays via the UI (docs/bots.md)
 ├── supabase/migrations/         0001_init.sql (schema + RLS), 0002_fk_indexes.sql
 ├── .github/workflows/deploy.yml test on GitHub runner, deploy on self-hosted runner
