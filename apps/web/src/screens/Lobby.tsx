@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type RoomState } from '@cabo/engine';
 import { CopyField } from '../components/CopyField';
 import { FinalResults } from '../components/FinalResults';
+import { SoundControl } from '../components/SoundControl';
+import { useMusic } from '../lib/sound';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
 import { usePublicUrl } from '../lib/config';
@@ -43,6 +45,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, watch
   // The room state is re-sent often; remember which game's standings were dismissed, not the object.
   const finalKey = room.final ? room.final.standings.map((s) => `${s.id}:${s.total}`).join(',') + `/${room.final.rounds}` : null;
   const [dismissedFinal, setDismissedFinal] = useState<string | null>(null);
+  useMusic(); // music starts in the lobby and carries on at the table
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close the level menu on an outside click or Escape.
@@ -68,6 +71,9 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, watch
 
   return (
     <main className="screen screen--top">
+      <div className="corner-controls">
+        <SoundControl />
+      </div>
       {room.final && finalKey !== dismissedFinal && (
         <FinalResults final={room.final} me={me} onClose={() => setDismissedFinal(finalKey)} />
       )}

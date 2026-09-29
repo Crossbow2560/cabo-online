@@ -23,7 +23,7 @@
 │   │   ├── test/integration.test.ts   socket.io-client bots against a real server
 │   │   └── .env.example
 │   └── web/                     @cabo/web
-│       ├── index.html           fonts (Alfa Slab One, Nunito)
+│       ├── index.html           fonts (Alfa Slab One, Nunito), favicon links
 │       ├── vite.config.ts       dev proxy: /api and /socket.io → :3101
 │       └── src/
 │           ├── App.tsx          screen state machine, session bootstrap, socket wiring
@@ -37,7 +37,8 @@
 │           │                    (PUBLIC_URL), useNow.ts, useMediaQuery.ts
 │           └── assets/icons/    game-icons.net SVGs (CC BY 3.0), fill = currentColor
 │       └── public/sounds/       card sounds: Kenney "Casino Audio" (CC0), as MP3
-│       └── public/music/        background.mp3 (looped at the table), see CREDITS.txt
+│       └── public/music/        background.mp3 (looped in the lobby and at the table), see CREDITS.txt
+│       └── public/              logo.svg (the card back: the game's logo and favicon), favicon-32.png, apple-touch-icon.png
 ├── tools/browser-bot.js         in-page bot that joins a room and plays via the UI (docs/bots.md)
 ├── supabase/migrations/         0001_init.sql (schema + RLS), 0002_fk_indexes.sql
 ├── .github/workflows/deploy.yml test on GitHub runner, deploy on self-hosted runner

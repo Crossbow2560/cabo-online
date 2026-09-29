@@ -6,7 +6,7 @@
  * after the player interacts with the page, so nothing plays until the first tap or key press;
  * sounds are also skipped while the tab is hidden, like the animations.
  */
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 export type SoundName = 'slide' | 'place' | 'shove' | 'fan' | 'reveal' | 'shuffle' | 'turn' | 'cabo';
 
@@ -78,8 +78,9 @@ let gameGain: GainNode;
 let musicGain: GainNode;
 /** The music is streamed through an <audio> element (a decoded 3-minute track would be ~65MB). */
 let musicEl: HTMLAudioElement | null = null;
-/** Whether the current screen wants music (the table does); it still needs audio unlocked and volume. */
-let musicWanted = false;
+/** How many mounted screens want music (lobby, table); it still needs audio unlocked and volume. */
+let musicWanted = 0;
+let musicStopTimer: number | undefined;
 const buffers = new Map<string, AudioBuffer>();
 const loading = new Map<string, Promise<void>>();
 const lastPlayed = new Map<SoundName, number>();
@@ -126,16 +127,29 @@ function unlock() {
   else syncMusic();
 }
 
-/** Background music on or off for the current screen (see Game). */
+/**
+ * A screen that wants background music calls this with true on mount and false on unmount
+ * (see useMusic). Stopping waits a moment, so going from the lobby to the table doesn't restart it.
+ */
 export function setMusicPlaying(on: boolean) {
-  musicWanted = on;
-  syncMusic();
+  musicWanted = Math.max(0, musicWanted + (on ? 1 : -1));
+  window.clearTimeout(musicStopTimer);
+  if (on) syncMusic();
+  else musicStopTimer = window.setTimeout(syncMusic, 300);
+}
+
+/** Background music while this component is on screen. */
+export function useMusic() {
+  useEffect(() => {
+    setMusicPlaying(true);
+    return () => setMusicPlaying(false);
+  }, []);
 }
 
 /** Play the music only when wanted, audible, allowed by the browser, and the tab is visible. */
 function syncMusic() {
   const audible = !settings.muted && settings.master > 0 && settings.music > 0;
-  const play = musicWanted && audible && !!ctx && ctx.state === 'running' && !document.hidden;
+  const play = musicWanted > 0 && audible && !!ctx && ctx.state === 'running' && !document.hidden;
   if (!play) {
     musicEl?.pause();
     return;

@@ -60,7 +60,7 @@ A spectator is not a player: they're tracked per room in memory (`Room.spectator
 - Card sounds are played from `lib/motion.ts`, which already knows every card movement and its timing, so a sound lands when the animation does. Non-movement cues (your turn, CABO, the reveal) come from `Game.tsx`.
 - `lib/sound.ts` uses the Web Audio API with a master gain feeding game and music gains: exact scheduling, cheap overlapping playback, and per-category volume. The audio context is created on the first tap or key press, because browsers block audio before that.
 - Clips are "Casino Audio" by Kenney (CC0), converted from Ogg to small mono MP3s (`apps/web/public/sounds`, ~160KB), since older Safari can't decode Ogg.
-- Music is `apps/web/public/music/background.mp3` (supplied by the project owner), trimmed of its silent ends, loudness-normalised to the same level as before and re-encoded (2.6MB, 3:09). It streams through an `<audio>` element routed into the music gain (`createMediaElementSource`) instead of being decoded into memory: a decoded 3-minute stereo track is ~65MB. It only plays at the table, only when audible, and pauses in background tabs.
+- Music is `apps/web/public/music/background.mp3` (supplied by the project owner), trimmed of its silent ends, loudness-normalised to the same level as before and re-encoded (2.6MB, 3:09). It streams through an `<audio>` element routed into the music gain (`createMediaElementSource`) instead of being decoded into memory: a decoded 3-minute stereo track is ~65MB. Screens that want it (lobby, table) call `useMusic()`; stopping is delayed briefly so moving from the lobby to the table doesn't restart it. It only plays when audible, and pauses in background tabs.
 
 ## Timers
 Defaults (`DEFAULT_TIMINGS`):

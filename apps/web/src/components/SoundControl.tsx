@@ -8,7 +8,7 @@ const SLIDERS: { key: 'master' | 'game' | 'music'; label: string; hint?: string 
   { key: 'music', label: 'Music', hint: 'Background tune' },
 ];
 
-/** Speaker button in the table's top bar: opens master / game / music volumes and a mute toggle. */
+/** Speaker button (table top bar and lobby corner): opens master / game / music volumes and a mute toggle. */
 export function SoundControl() {
   const s = useSoundSettings();
   const [at, setAt] = useState<{ top: number; right: number } | null>(null);
