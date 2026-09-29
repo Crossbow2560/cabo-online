@@ -56,6 +56,11 @@ A spectator is not a player: they're tracked per room in memory (`Room.spectator
 - **Pause** lives on the server's room (`Room.paused`), not in the engine: it only stops the room's timer and bots, and on resume shifts the current deadline (and the peek hold) by the paused time. It isn't persisted, so a server restart resumes play. Snap windows can't be paused, because each client times its own.
 - **End game** keeps the room and its players: the final standings are sent once in `RoomState.final`, then totals and the round count reset for a new game.
 
+## Sounds: Web Audio, driven by the animation layer
+- Card sounds are played from `lib/motion.ts`, which already knows every card movement and its timing, so a sound lands when the animation does. Non-movement cues (your turn, CABO, the reveal) come from `Game.tsx`.
+- `lib/sound.ts` uses the Web Audio API with a master gain feeding game and music gains: exact scheduling, cheap overlapping playback, and per-category volume. The audio context is created on the first tap or key press, because browsers block audio before that.
+- Clips are "Casino Audio" by Kenney (CC0), converted from Ogg to small mono MP3s (`apps/web/public/sounds`, ~160KB), since older Safari can't decode Ogg.
+
 ## Timers
 Defaults (`DEFAULT_TIMINGS`):
 

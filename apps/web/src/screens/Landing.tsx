@@ -14,7 +14,7 @@ export function Landing({ onPlay, onRules }: { onPlay: () => void; onRules: () =
         </button>
       </div>
       <footer className="footer">
-        Icons by Delapouite &amp; Lorc — <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a> (CC BY 3.0)
+        Icons by Delapouite, Lorc &amp; Guard13007 — <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a> (CC BY 3.0)
       </footer>
     </main>
   );

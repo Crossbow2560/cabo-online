@@ -55,6 +55,13 @@ The same browser profile is always the same player. To test alone, use private w
 - Every card movement is animated, and the card that just changed glows for a moment. Swaps lift and glow both cards before they cross.
 - **Posse** (bottom-left) shows online status, away countdowns and totals. **Log** (bottom-right) shows the full event history, and messages marked "just you" are private. **?** opens the rules.
 
+## Sound
+
+The speaker button in the top bar (between pause and **?**) opens the sound settings: **Master**, **Game** and **Music** volumes, and **Mute all**. Settings are saved in this browser.
+- Game sounds follow the cards: a shuffle when a round is dealt, a slide when a card is drawn, a soft place when a card lands, a shove when two cards swap or a wrong snap is pushed back, and a fan when a card is lifted to be looked at. There's also a short chip click when your turn starts, a clatter when someone calls CABO, and a fan as the round's cards are revealed.
+- There's no music yet; the Music slider is ready for it.
+- Browsers only allow sound after you've tapped or pressed a key on the page, so the first few moments may be silent. Sounds are skipped while the tab is in the background.
+
 ## Pausing and ending a game
 
 - **Pause (❚❚ in the top bar):** anyone can pause a round, and anyone can press **Resume**. While paused, the turn timers stop, bots wait, and no moves are accepted. On resume, everyone gets back exactly the time they had left. You can't pause during a 3.5s snap window: each player's window runs on their own screen, so it can't be frozen fairly.

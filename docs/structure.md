@@ -33,9 +33,10 @@
 │           ├── components/      PlayingCard, Hand, Seat, ActionBar, EventFeed, PlayersCard,
 │           │                    RoundResults, RulesModal, ConfirmDialog, CopyField,
 │           │                    DesertBackdrop, Title, Icon
-│           ├── lib/             motion.ts (card animations), copy.ts (clipboard), config.ts
+│           ├── lib/             motion.ts (card animations), sound.ts (Web Audio game sounds), copy.ts (clipboard), config.ts
 │           │                    (PUBLIC_URL), useNow.ts, useMediaQuery.ts
 │           └── assets/icons/    game-icons.net SVGs (CC BY 3.0), fill = currentColor
+│       └── public/sounds/       card sounds: Kenney "Casino Audio" (CC0), as MP3
 ├── tools/browser-bot.js         in-page bot that joins a room and plays via the UI (docs/bots.md)
 ├── supabase/migrations/         0001_init.sql (schema + RLS), 0002_fk_indexes.sql
 ├── .github/workflows/deploy.yml test on GitHub runner, deploy on self-hosted runner

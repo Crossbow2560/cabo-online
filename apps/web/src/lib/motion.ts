@@ -1,5 +1,6 @@
 import type { Card, Motion, Spot } from '@cabo/engine';
 import lawStar from '../assets/icons/law-star.svg?raw';
+import { playSound } from './sound';
 
 /**
  * Card movement animations.
@@ -204,10 +205,13 @@ export function playDeal(playerIds: string[], slotsPerPlayer: number) {
   const stock = cardEl({ at: 'stock' });
   const from = stock?.getBoundingClientRect() ?? null;
   const look = lookOf(stock);
+  playSound('shuffle', { volume: 0.7 });
   if (!from) return;
   let n = 0;
   for (let k = 0; k < slotsPerPlayer; k++) {
     for (const playerId of playerIds) {
+      // Quiet slides under the shuffle: every other card, so a full table isn't a clatter.
+      if (n % 2 === 0) playSound('slide', { delay: 450 + n * 55, volume: 0.35 });
       fly({ from: { at: 'stock' }, to: { at: 'slot', playerId, slot: k }, fromRect: from, fromTurn: 0, fromLook: look, markChanged: false }, n++ * 55);
     }
   }
@@ -254,7 +258,19 @@ function settleNow(el: HTMLElement | null) {
   }
 }
 
+/** The sound of one card movement, timed to the animation (plays even with reduced motion). */
+function flightSound(f: Flight, delay: number) {
+  if (f.markChanged === false) return; // the deal has its own sound (playDeal)
+  if (f.swap) {
+    if ((f.arc ?? 1) > 0) playSound('shove', { delay: delay + SWAP_MS * SWAP_LIFT }); // once per swap, as they cross
+    return;
+  }
+  if (f.from.at === 'stock') playSound('slide', { delay }); // drawn (or a penalty card)
+  if (f.to.at !== 'held' && f.to.at !== 'stock') playSound('place', { delay: delay + FLY_MS * 0.8, volume: 0.9 });
+}
+
 function fly(f: Flight, delay: number) {
+  flightSound(f, delay);
   const markChanged = f.markChanged ?? true;
   const target = cardEl(f.to);
   settleNow(target);
@@ -361,6 +377,7 @@ function settle(before: Map<string, DOMRect>, busy: Set<string>) {
 
 /** The peeker: the card lifts over their hand, turns up, is held a moment, turns down, goes back. */
 function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: number) {
+  playSound('fan', { delay });
   window.setTimeout(() => {
     const target = cardEl(spot);
     if (!target) return;
@@ -423,6 +440,7 @@ function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: n
  * top row scrolls on phones), and a lift toward the peeker would carry it out of view.
  */
 function peekAsOnlooker(spot: Spot, by: string, delay: number) {
+  playSound('fan', { delay, volume: 0.6 });
   window.setTimeout(() => {
     const el = cardEl(spot);
     if (!el) return;
@@ -492,6 +510,7 @@ function mark(el: HTMLElement, ms = CHANGED_MS) {
 
 /** Wrong snap: wiggle the card and show its face to everyone for a moment. */
 function flash(spot: Spot, card?: Card) {
+  playSound('shove'); // wrong snap: the card is pushed back
   const el = cardEl(spot);
   if (!el || document.hidden) return;
   el.removeAttribute('data-flash');

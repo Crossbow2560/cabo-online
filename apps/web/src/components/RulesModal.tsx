@@ -73,7 +73,8 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           </table>
 
           <p className="attribution">
-            Icons by Delapouite &amp; Lorc — <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a> (CC BY 3.0)
+            Icons by Delapouite, Lorc &amp; Guard13007 — <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a> (CC BY 3.0).
+            Card sounds by <a href="https://kenney.nl/assets/casino-audio" target="_blank" rel="noreferrer">Kenney</a> (CC0).
           </p>
         </div>
       </div>

@@ -9,6 +9,9 @@ import { PlayersCard } from './components/PlayersCard';
 import { PlayingCard } from './components/PlayingCard';
 import { RoundResults } from './components/RoundResults';
 import { Seat } from './components/Seat';
+import { SoundControl } from './components/SoundControl';
+import { Icon } from './components/Icon';
+import { playSound } from './lib/sound';
 import { Title } from './components/Title';
 import { playDeal, playMotions } from './lib/motion';
 import { useMediaQuery } from './lib/useMediaQuery';
@@ -195,12 +198,22 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const left = view.deadline ? Math.max(0, view.deadline - now) : 0;
   const frac = span > 0 ? Math.min(1, left / span) : 0;
 
+  // Sound cues that aren't card movements: your turn starts; the round's cards are revealed.
+  const prevCue = useRef({ myTurn: false, phase: view.phase });
+  useEffect(() => {
+    const turnNow = myTurn && view.phase === 'choose';
+    if (turnNow && !prevCue.current.myTurn) playSound('turn', { volume: 0.8 });
+    if (view.phase === 'ended' && prevCue.current.phase !== 'ended') playSound('reveal');
+    prevCue.current = { myTurn: turnNow, phase: view.phase };
+  }, [myTurn, view.phase]);
+
   // "CABO!" banner when someone calls it (not when rejoining a round where it was already called).
   const prevCabo = useRef(view.caboCalledBy);
   const [caboBanner, setCaboBanner] = useState<string | null>(null);
   useEffect(() => {
     if (view.caboCalledBy && view.caboCalledBy !== prevCabo.current) {
       setCaboBanner(view.caboCalledBy);
+      playSound('cabo');
       const t = window.setTimeout(() => setCaboBanner(null), 1600);
       prevCabo.current = view.caboCalledBy;
       return () => window.clearTimeout(t);
@@ -260,9 +273,10 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
             aria-label="Pause game"
             title={view.phase === 'snap' ? 'Wait for the snap window to close' : 'Pause the game'}
           >
-            ❚❚
+            <Icon name="pause-button" className="tbar__svg" />
           </button>
         )}
+        <SoundControl />
         <button className="btn btn--light btn--sm tbar__icon" onClick={onRules} aria-label="How to play">?</button>
         {spectator ? (
           <button className="btn btn--primary btn--sm" onClick={onLeave}>
