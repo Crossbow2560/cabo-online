@@ -427,7 +427,22 @@ describe('snapping', () => {
 });
 
 describe('cabo & end of round', () => {
-  it("R29: nobody can swap with the CABO caller (J/Q or Black King), but may still look and snap", () => {
+  it("R29: nobody else can snap the CABO caller's cards (refused, no penalty); the caller still can", () => {
+    // p1 calls CABO; p2 draws and discards a 2, matching p1's slot 0 (2S) and p0's slot 0 (2S).
+    let s = playing({ hands: [['2C', '3S', '4S', '5S'], ['2S', '9S', '9C', '9D'], HANDS[2]], stock: ['2D'] });
+    s = ok(s, { type: 'CALL_CABO', playerId: 'p1' });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p2' });
+    s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p2' });
+    const w = (s.phase as { windowId: number }).windowId;
+    expect(err(s, { type: 'SNAP', playerId: 'p0', windowId: w, ownerId: 'p1', slot: 0 })).toBe('invalid');
+    expect(err(s, { type: 'SNAP', playerId: 'p2', windowId: w, ownerId: 'p1', slot: 1 })).toBe('invalid'); // not even a wrong guess
+    const mine = ok(s, { type: 'SNAP', playerId: 'p1', windowId: w, ownerId: 'p1', slot: 0 });
+    expect(mine.players[1].slots[0]).toBeNull();
+    const others = ok(s, { type: 'SNAP', playerId: 'p2', windowId: w, ownerId: 'p0', slot: 0 });
+    expect(others.players[0].slots[0]).toBeNull();
+  });
+
+  it("R29: nobody can swap with the CABO caller (J/Q or Black King), but may still look", () => {
     // p1 calls CABO; p2 plays next and discards a Queen.
     let s = playing({ hands: HANDS, stock: ['QD'] });
     s = ok(s, { type: 'CALL_CABO', playerId: 'p1' });

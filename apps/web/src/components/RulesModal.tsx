@@ -39,7 +39,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           <ul>
             <li><b>Draw from the stockpile</b>, then keep it (swap it with one of your cards, which goes to the discard) or discard it.</li>
             <li><b>Take the top discard</b> and swap it with one of your cards.</li>
-            <li><b>Call CABO</b> - everyone else gets one more turn, then all cards are revealed. From then on, nobody can swap cards with you.</li>
+            <li><b>Call CABO</b> - everyone else gets one more turn, then all cards are revealed. From then on, nobody can swap with you or snap your cards.</li>
           </ul>
 
           <h3>Special cards</h3>
@@ -50,7 +50,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             <li><span className="badge">J</span><span className="badge">Q</span>Blind swap one of your cards with another player’s.</li>
             <li><span className="badge">K♠</span><span className="badge">K♣</span>Look at another player’s card and one of your own, then choose whether to swap them.</li>
           </ul>
-          <p><b>The CABO caller is off limits for swaps.</b> Once someone calls CABO, a Jack or Queen can’t blind swap with them, and a Black King can look at their card but not swap it. You can still snap their cards.</p>
+          <p><b>The CABO caller’s hand is locked.</b> Once someone calls CABO, a Jack or Queen can’t blind swap with them, a Black King can look at their card but not swap it, and nobody else can snap their cards.</p>
 
           <h3>Snapping</h3>
           <p>Whenever a card is discarded, anyone can race to throw a card of the <b>same rank</b> on top - from their own hand or someone else’s. Only the first one counts.</p>

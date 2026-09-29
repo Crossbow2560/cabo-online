@@ -261,6 +261,8 @@ class Ctx {
     if (streak && snapper.id !== onlyFor) reject('too_slow', `Too slow — ${this.player(onlyFor).name} snapped first`);
     if (streak && ownerId !== snapper.id) reject('invalid', 'In a snap streak you can only snap your own cards');
     const owner = this.player(ownerId);
+    // R29: the CABO caller's hand is locked. Nobody else may snap from it (refused, no penalty).
+    if (owner.id === s.caboCalledBy && snapper.id !== owner.id) reject('invalid', "The player who called CABO can't be snapped from");
     const card = this.ownCard(owner, slot); // R16: empty / bad slot is invalid, no penalty
     const top = s.discard[s.discard.length - 1];
     const whose = owner.id === snapper.id ? 'their own' : `${owner.name}'s`;
@@ -437,7 +439,7 @@ class Ctx {
   }
 
   private swap(me: PlayerState, mySlot: number, target: PlayerState, slot: number): void {
-    // R29: once CABO is called, the caller's hand is locked against swaps (J/Q and Black King).
+    // R29: once CABO is called, the caller's hand is locked against swaps (J/Q and Black King) and snaps.
     if (target.id === this.s.caboCalledBy) reject('invalid', "The player who called CABO can't be swapped with");
     const mine = this.ownCard(me, mySlot);
     const theirs = this.ownCard(target, slot);

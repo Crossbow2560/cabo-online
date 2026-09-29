@@ -114,13 +114,13 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - The card they give goes into the **exact gap**, face-down. Neither the snapper nor the receiver sees it, unless the snapper had already seen it.
   - If the snapper has 0 cards, the gap simply stays.
 - **R18:** Gaps (`null`) keep their positions, so other players' memory of slot positions stays valid. Penalty cards are added to the end of the grid and never fill gaps.
-- **R19:** The current player may snap too, and any player may snap cards of the Cabo caller.
+- **R19:** The current player may snap too. Once CABO is called, nobody else may snap the caller's cards (R29).
 
 **Cabo & end**
 - **R20:** `CALL_CABO` replaces the caller's whole turn, and it is allowed from the first turn onward.
   - Only one Cabo is allowed per round, so nobody can call during the final round.
   - The caller takes no more turns.
-  - The caller's cards can still be snapped, as written, but no longer swapped (see R29).
+  - The caller's cards can no longer be swapped or snapped by anyone else (see R29).
 - **R21:** The final round is one turn for each other player, in seat order. The round ends after the last of those turns and its snap window.
 - **R22:** Scoring:
   - Only the cards present in a player's grid count; gaps count 0, and a player with 0 cards scores 0.
@@ -144,10 +144,11 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - A seat is tied to the session token, and the server stores only a sha256 of it.
   - Nobody can join a game that's already running; only the existing seats can reconnect.
   - A new socket for the same session replaces the old one.
-- **R29:** **The CABO caller is locked against swaps.** Once CABO is called, nobody may swap a card with the caller:
+- **R29:** **The CABO caller's hand is locked.** Once CABO is called, nobody else may swap with or snap from the caller:
   - A J/Q blind swap can't target the caller. If the caller is the only other player with cards, the J/Q has no usable ability and the snap window opens straight away (as R9).
   - A Black King may still look at one of the caller's cards, but can't swap it; the player can only keep the cards where they are.
-  - Snapping the caller's cards (R19) and giving a card into a gap after such a snap (R17) are still allowed.
+  - Nobody else may snap the caller's cards. Such a snap is refused with no penalty and the card isn't revealed (like R16).
+  - The caller may still snap their own cards when someone else's discard matches.
 - **R30:** **Snap streak.** Whoever makes the first correct snap on a discard then gets a snap window of their own (same length as a normal one):
   - Only they may snap in it, and only cards from their own hand, of the same rank. Each correct snap opens another streak window, so they can clear several matching cards one after another.
   - The window opens whether or not they still hold a match, so it reveals nothing about their hand.

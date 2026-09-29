@@ -95,8 +95,12 @@ export class BotBrain {
         }
         // Own matches first; opponents' only if we have a card to give back.
         const own = my.find((s) => s.card?.rank === rank);
+        // R29: the CABO caller's cards can't be snapped by anyone else.
         const theirs = my.length
-          ? view.players.filter((p) => p.id !== me).flatMap((p) => this.slots(view, p.id)).find((s) => s.card?.rank === rank)
+          ? view.players
+              .filter((p) => p.id !== me && p.id !== view.caboCalledBy)
+              .flatMap((p) => this.slots(view, p.id))
+              .find((s) => s.card?.rank === rank)
           : undefined;
         const target = own ?? theirs;
         if (!target) return null;

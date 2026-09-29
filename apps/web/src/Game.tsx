@@ -126,7 +126,11 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
     if (!s || spectator) return false;
     const mine = ownerId === me;
     // R30: in a snap streak only the first snapper may snap, and only their own cards.
-    if (view.phase === 'snap') return view.snapOnlyFor ? view.snapOnlyFor === me && mine && mySnap === null : mySnap === null;
+    // R29: nobody else can snap the CABO caller's cards.
+    if (view.phase === 'snap') {
+      if (view.snapOnlyFor) return view.snapOnlyFor === me && mine && mySnap === null;
+      return mySnap === null && (mine || ownerId !== view.caboCalledBy);
+    }
     if (view.phase === 'give') return view.give?.snapperId === me && mine;
     if (!myTurn) return false;
     if (view.phase === 'choose') return pick === 'take_discard' && mine;
