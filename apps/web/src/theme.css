@@ -1209,3 +1209,12 @@ button.pcard:disabled { opacity: 1; }
 .hand--turn .pcard-wrap { transform: rotate(var(--turn)); }
 .hand--turn-left { --turn: 90deg; }
 .hand--turn-right { --turn: -90deg; }
+
+/* Side-seat layout stacks the top seat, the piles and your hand in one column. Size cards from the
+   height that's left after the fixed chrome (bars, name plates, labels ≈ 350px); the three rows
+   hold ≈ 5.9 large-card widths of card height. Ratios match the defaults (md ≈ 0.89, sm ≈ 0.65). */
+.table--sides {
+  --card-lg: clamp(34px, min(9vw, 9vh, calc((100vh - 350px) / 5.9)), 120px);
+  --card-md: calc(var(--card-lg) * 0.89);
+  --card-sm: calc(var(--card-lg) * 0.65);
+}
