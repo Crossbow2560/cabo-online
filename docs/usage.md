@@ -7,7 +7,7 @@
 3. Friends open the link (the code is pre-filled), or tap **Join room** and type the code.
 4. The host presses **Start game** once there are 2–8 players.
 
-The same browser profile is always the same player. To test alone, use private windows or different browsers.
+The same browser profile is always the same player. To test alone, use private windows or different browsers, or add `?profile=<name>` to the URL (e.g. `/?room=ABC123&profile=p2`), which keeps a separate player per name in one browser. To play against bots, see [bots](bots.md).
 
 ## Playing a round
 

@@ -58,3 +58,5 @@ These start a real server on a random port (`createCaboServer` with short timing
 ## What isn't automated
 
 The web client, including layout and the animation layer, has no automated tests. It was verified manually in a browser. Seed a known deck with `CABO_SEED` to trigger specific abilities on purpose, and measure element positions and animations from the devtools console.
+
+To fill a table while playing yourself, launch browser bots into your room: see [bots](bots.md).

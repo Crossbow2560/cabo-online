@@ -12,6 +12,7 @@ A real-time multiplayer web version of **Cabo**, the memory card game where the 
 | [📖 Usage guide](docs/usage.md) | How to play, flows and edge cases |
 | [🔌 API](docs/api.md) | HTTP endpoints and Socket.IO events |
 | [🧪 Testing](docs/testing.md) | How to run tests and what they cover |
+| [🤖 Bots](docs/bots.md) | Browser bots that join a room code and play against a real human |
 
 The full rule set and every ruling the engine enforces (R1–R28) live in [PLAN.md](PLAN.md).
 
@@ -62,6 +63,7 @@ apps/server/       Express + Socket.IO game server, room manager, Postgres store
 apps/web/          React client: screens, table, card animations, theme
 supabase/          SQL migrations
 .github/workflows/ test + deploy pipeline
+tools/            browser-bot.js: in-page bot for playtesting against humans
 Dockerfile, docker-compose.yml
 ```
 

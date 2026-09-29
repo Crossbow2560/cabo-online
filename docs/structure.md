@@ -35,6 +35,7 @@
 │           ├── lib/             motion.ts (card animations), copy.ts (clipboard), config.ts
 │           │                    (PUBLIC_URL), useNow.ts, useMediaQuery.ts
 │           └── assets/icons/    game-icons.net SVGs (CC BY 3.0), fill = currentColor
+├── tools/browser-bot.js         in-page bot that joins a room and plays via the UI (docs/bots.md)
 ├── supabase/migrations/         0001_init.sql (schema + RLS), 0002_fk_indexes.sql
 ├── .github/workflows/deploy.yml test on GitHub runner, deploy on self-hosted runner
 ├── Dockerfile                   multi-stage: build web, run server with tsx
@@ -56,6 +57,7 @@
   - Renders only what the server sends. It must not cache hidden cards (e.g. peek results) beyond what the UI shows right now.
   - The `revealed` map in `Game.tsx` exists only to keep a Black King's two looked-at cards face-up while deciding.
   - Animation code lives in `lib/motion.ts`. Components only tag cards with `data-spot` / `data-seat` anchors.
+- **`tools/browser-bot.js`:** plain browser JS with no build step. It depends on the web client's DOM hooks (`data-spot`, `.pcard--*` classes, button labels), so keep it in step when those change.
 - **`supabase/migrations`:** schema only. The server doesn't run migrations; apply them through the Supabase SQL editor or CLI.
 
 ## Workspaces

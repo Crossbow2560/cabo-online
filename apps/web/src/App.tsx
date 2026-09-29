@@ -22,7 +22,10 @@ interface Session {
   token: string;
 }
 
-const TOKEN_KEY = 'cabo.token';
+// ?profile=NAME keeps a separate identity per name on the same origin, so
+// several players (e.g. test bots, see docs/bots.md) can share one browser.
+const PROFILE = (new URLSearchParams(location.search).get('profile') ?? '').replace(/[^\w-]/g, '').slice(0, 32);
+const TOKEN_KEY = PROFILE ? `cabo.token.${PROFILE}` : 'cabo.token';
 
 function readToken(): string | null {
   try {

@@ -32,6 +32,7 @@ Every action updates memory, and then a snapshot is upserted asynchronously, cha
 There are no accounts; a nickname returns a random token, and the server stores only its sha256.
 - One live socket per session: a new tab replaces the old one. The new socket registers first, so the replacement doesn't mark the player offline.
 - Only a 401 clears the stored token. A 5xx or network error (e.g. during a deploy) retries instead of logging the player out.
+- `?profile=<name>` switches to a separate storage key (`cabo.token.<name>`), so several players can share one browser. It exists for playtesting with bots ([bots](bots.md)) and grants nothing a private window wouldn't.
 
 ## Offline handling: kick after 5 minutes, hold the peek
 - **Kick:** a disconnected player keeps their seat and the turn timers auto-play for them. After 5 minutes offline they're removed (`REMOVE_PLAYER`), and fewer than 2 players ends the round as "last one standing".
