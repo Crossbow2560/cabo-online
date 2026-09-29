@@ -33,13 +33,13 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           <p>Finish with the <b>lowest total</b> of cards in front of you. Swap your cards for lower ones, or get rid of them by snapping matching ranks.</p>
 
           <h3>The deal</h3>
-          <p>Everyone gets 4 cards face down in a square. At the start you may peek at your <b>two nearest cards</b> (the bottom row) once — memorise them! After that you can’t look at your cards unless a special card lets you.</p>
+          <p>Everyone gets 4 cards face down in a square. At the start you may peek at your <b>two nearest cards</b> (the bottom row) once - memorise them! After that you can’t look at your cards unless a special card lets you.</p>
 
-          <h3>Your turn — do one of</h3>
+          <h3>Your turn - do one of</h3>
           <ul>
             <li><b>Draw from the stockpile</b>, then keep it (swap it with one of your cards, which goes to the discard) or discard it.</li>
             <li><b>Take the top discard</b> and swap it with one of your cards.</li>
-            <li><b>Call CABO</b> — everyone else gets one more turn, then all cards are revealed.</li>
+            <li><b>Call CABO</b> - everyone else gets one more turn, then all cards are revealed.</li>
           </ul>
 
           <h3>Special cards</h3>

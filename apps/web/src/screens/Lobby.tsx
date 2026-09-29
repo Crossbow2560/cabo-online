@@ -9,10 +9,10 @@ import { formatCountdown, useNow } from '../lib/useNow';
 const MIN_ROWS = 3;
 
 const LEVEL_INFO: Record<BotLevel, { label: string; hint: string }> = {
-  beginner: { label: 'Beginner', hint: 'Slow · never snaps' },
-  novice: { label: 'Novice', hint: 'Unhurried · snaps half the time' },
-  intermediate: { label: 'Intermediate', hint: 'Steady · snaps half the time' },
-  expert: { label: 'Expert', hint: 'Quick · snaps every match it knows' },
+  beginner: { label: 'Beginner', hint: "Slow · First time eh'?" },
+  novice: { label: 'Novice', hint: 'Unhurried · Calm and poised' },
+  intermediate: { label: 'Intermediate', hint: "Steady · Steady hands pardner'" },
+  expert: { label: 'Expert', hint: "Quick · You ain't leavin' the table"},
 };
 
 export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
