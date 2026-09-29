@@ -29,7 +29,7 @@ The same browser profile is always the same player. To test alone, use private w
 
   Once someone calls CABO, their hand is locked: a J/Q can't blind swap with them, a Black King can look at their card but only **Keep them**, and nobody else can snap their cards (the caller can still snap their own).
 
-  **Skip ability** is always available. The peeked card lifts toward you for a few seconds; other players see which card you looked at, but not its value.
+  **Skip ability** is always available. After a peek or a swap, snapping opens only once the cards are back in place (about 6s after a peek, 2s after a swap), so you can snap the very card you just looked at. The peeked card lifts toward you for a few seconds; other players see which card you looked at, but not its value.
 - **Snapping:** after any discard there's a 3.5s **SNAP!** window. Tap any card, yours or an opponent's, that you think matches the discard's rank.
   - You get **one** snap per window. Your 3.5s start when the window appears on *your* screen.
   - The fastest correct snap wins: snaps are compared by how quickly each player reacted, so a laggy connection doesn't cost you the race. The result shows once everyone's window has ended.

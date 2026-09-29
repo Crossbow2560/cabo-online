@@ -4,7 +4,7 @@ import { cardValue, type PlayerView } from '@cabo/engine';
 import { createCaboServer } from '../src/server';
 import { MemoryStore, PgStore, type Store } from '../src/store';
 
-const TIMINGS = { peekMs: 5_000, turnMs: 5_000, choiceMs: 5_000, snapMs: 150 };
+const TIMINGS = { peekMs: 5_000, turnMs: 5_000, choiceMs: 5_000, snapMs: 150, peekViewMs: 40, swapSettleMs: 40 };
 
 type Server = Awaited<ReturnType<typeof createCaboServer>>;
 const servers: Server[] = [];

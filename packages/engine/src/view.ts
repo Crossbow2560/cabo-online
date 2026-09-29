@@ -26,6 +26,8 @@ export interface PlayerView {
   /** look_swap: which of their own cards they looked at next. */
   abilityPeekedMine: number | null;
   snapWindowId: number | null;
+  /** R31: during a `settle` pause, whether it follows a peek or a swap. */
+  lastSettle: 'peek' | 'swap' | null;
   /** R30: set during a snap streak; only this player may snap (their own cards). */
   snapOnlyFor: string | null;
   /** Length of a snap window; each client times its own window from when it sees it open. */
@@ -68,6 +70,7 @@ export function redactFor(s: GameState, viewerId: string): PlayerView {
     abilityPeekedMine: ph.kind === 'ability' ? ph.peekedMine ?? null : null,
     snapWindowId: ph.kind === 'snap' ? ph.windowId : null,
     snapOnlyFor: ph.kind === 'snap' ? ph.onlyFor ?? null : null,
+    lastSettle: ph.kind === 'settle' ? ph.after : null,
     snapMs: s.timings.snapMs,
     give: ph.kind === 'give' ? { snapperId: ph.snapperId, targetId: ph.targetId, slot: ph.slot } : null,
     result: ph.kind === 'ended' ? { reason: ph.reason, scores: ph.scores, winners: ph.winners } : null,

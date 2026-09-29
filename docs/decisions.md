@@ -71,11 +71,12 @@ Defaults (`DEFAULT_TIMINGS`):
 | Turn | 60s |
 | Ability / give choice | 15s |
 | Snap window | 3.5s |
+| Pause before snapping after a peek / a swap | 6s / 1.8s |
 
 The snap window opens **after** the action and ability resolve (ruling R12), so an ability's target can't disappear mid-ability.
 
 ## Rule interpretations
-The source rules are ambiguous in places. [PLAN.md](../PLAN.md) records each ruling (R1–R30), for example:
+The source rules are ambiguous in places. [PLAN.md](../PLAN.md) records each ruling (R1–R31), for example:
 - Abilities trigger only when a stock-drawn card is discarded directly (R7).
 - Snapping an opponent's card makes giving a card into the gap optional (R17).
 - A black King looks at an opponent's card **and** one of your own, then optionally swaps them (R10).

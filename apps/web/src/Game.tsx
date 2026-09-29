@@ -270,7 +270,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         {view.caboCalledBy && view.phase !== 'ended' && (
           <div className="tbar__final" title={`CABO called by ${name(view.caboCalledBy)}`}>Final round</div>
         )}
-        {view.deadline && view.phase !== 'ended' && !room.paused && <TimerRing frac={frac} seconds={Math.ceil(left / 1000)} />}
+        {view.deadline && view.phase !== 'ended' && view.phase !== 'settle' && !room.paused && <TimerRing frac={frac} seconds={Math.ceil(left / 1000)} />}
         <div className="tbar__spacer" />
         {spectator && <div className="tbar__watching">Watching</div>}
         {room.status === 'playing' && !room.paused && !spectator && (
@@ -478,6 +478,9 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
       if (view.snapOnlyFor) return <>{name(view.snapOnlyFor)} snapped first and may snap more {rank}s</>;
       return <>Discarded {view.discardTop ? cardLabel(view.discardTop) : ''} — snap a match! Wrong guesses cost a card.</>;
     }
+    case 'settle': // R31: snapping opens once the card is back in place
+      if (view.lastSettle === 'swap') return <>Cards changing hands… snapping opens in a moment</>;
+      return myTurn ? <>Take a good look… snapping opens once your card is back</> : <>{cur} is looking at a card… snapping opens once it's back</>;
     case 'give':
       return view.give!.snapperId === me
         ? <>You snapped {name(view.give!.targetId)}'s card — tap one of yours to give them, or skip</>

@@ -20,7 +20,7 @@ CI (`.github/workflows/deploy.yml`) runs `npm ci`, the typecheck, `npm test` and
 
 These are unit tests against the pure reducer. Each builds a game with a fixed seed and overrides hands, stock and discard to set up exact situations.
 - **Deck and scoring:** 54 cards with 2 Jokers; A=1, J=11, Q=12, black K=13, red K=0, Joker=−1.
-- **Rulings R1–R30:** most tests are named after the ruling they cover. For example:
+- **Rulings R1–R31:** most tests are named after the ruling they cover. For example:
   - `R14: late correct snap rejected without penalty`
   - the R17 give-card tests
   - the R20/R21 Cabo final-round tests

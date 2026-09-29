@@ -202,7 +202,26 @@ describe('abilities', () => {
     expect(priv).toEqual([{ to: 'p1', text: 'Your slot 3 is 9♥', reveal: { playerId: 'p1', slot: 2, card: c('9H') } }]);
     expect(r.events.filter((e) => !e.to).every((e) => !e.reveal)).toBe(true);
     expect(r.events.filter((e) => !e.to).some((e) => e.text.includes('9♥'))).toBe(false);
-    expect(r.state.phase.kind).toBe('snap');
+    expect(r.state.phase).toEqual({ kind: 'settle', after: 'peek' }); // R31
+  });
+
+  it('R31: the snap window opens only once a peeked card is back, or swapped cards have landed', () => {
+    let s = drawAndDiscard('7S');
+    s = ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 2 });
+    expect(s.phase).toEqual({ kind: 'settle', after: 'peek' });
+    expect(s.deadline).toBe(T0 + s.timings.peekViewMs);
+    // Nobody can snap while the card is still being looked at...
+    expect(err(s, { type: 'SNAP', playerId: 'p0', windowId: s.windowCounter, ownerId: 'p1', slot: 2 })).toBe('too_slow');
+    expect(err(s, { type: 'TICK' }, T0 + s.timings.peekViewMs - 1)).toBe('not_due');
+    // ...then a normal snap window.
+    s = ok(s, { type: 'TICK' }, T0 + s.timings.peekViewMs);
+    expect(s.phase).toMatchObject({ kind: 'snap' });
+    expect(s.deadline).toBe(T0 + s.timings.peekViewMs + s.timings.snapMs);
+
+    let q = drawAndDiscard('QS');
+    q = ok(q, { type: 'BLIND_SWAP', playerId: 'p1', mySlot: 0, targetId: 'p2', slot: 0 });
+    expect(q.phase).toEqual({ kind: 'settle', after: 'swap' });
+    expect(ok(q, { type: 'TICK' }, T0 + q.timings.swapSettleMs).phase.kind).toBe('snap');
   });
 
   it('9/10: peek another player (R9: not self)', () => {

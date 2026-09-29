@@ -208,7 +208,7 @@ class Ctx {
           s.deadline = this.now + s.timings.choiceMs;
           return;
         }
-        return this.openSnapWindow();
+        return this.settle('peek'); // R31: snap only once the card is back in place
       }
       case 'PEEK_OTHER': {
         const ph = this.expectPhase('ability');
@@ -223,7 +223,7 @@ class Ctx {
           s.deadline = this.now + s.timings.choiceMs;
           return;
         }
-        return this.openSnapWindow();
+        return this.settle('peek'); // R31
       }
       case 'SWAP': {
         const ph = this.expectPhase('ability');
@@ -232,13 +232,13 @@ class Ctx {
         if (a.mySlot !== ph.peekedMine) reject('invalid', 'Swap the card you looked at');
         const target = this.player(ph.peeked!.playerId);
         this.swap(me, a.mySlot, target, ph.peeked!.slot);
-        return this.openSnapWindow();
+        return this.settle('swap'); // R31
       }
       case 'BLIND_SWAP': {
         const ph = this.expectPhase('ability');
         if (ph.ability !== 'blind_swap') reject('invalid', 'Wrong ability');
         this.swap(me, a.mySlot, this.other(me, a.targetId), a.slot);
-        return this.openSnapWindow();
+        return this.settle('swap'); // R31
       }
       case 'GIVE_CARD':
         return reject('wrong_phase', 'Nothing to give');
@@ -321,6 +321,8 @@ class Ctx {
         return this.openSnapWindow();
       case 'snap':
         return this.advanceTurn();
+      case 'settle':
+        return this.openSnapWindow(); // R31: the card is back; now anyone may snap
       case 'give':
         this.log(`${this.player(ph.snapperId).name} ran out of time — no card given`);
         return this.openSnapWindow(ph.snapperId); // R30
@@ -333,6 +335,15 @@ class Ctx {
     s.phase = { kind: 'choose' };
     s.deadline = this.now + s.timings.turnMs;
     this.log(`Everyone is ready. ${this.current().name} goes first`);
+  }
+
+  /** R31: wait for a peeked card to be put back (or swapped cards to land) before the snap window. */
+  private settle(after: 'peek' | 'swap'): void {
+    const s = this.s;
+    s.phase = { kind: 'settle', after };
+    // Games saved before these timings existed fall back to the defaults.
+    const ms = after === 'peek' ? s.timings.peekViewMs ?? DEFAULT_TIMINGS.peekViewMs : s.timings.swapSettleMs ?? DEFAULT_TIMINGS.swapSettleMs;
+    s.deadline = this.now + ms;
   }
 
   /** A snap window for everyone, or (R30) a snap streak window for `onlyFor` alone. */
@@ -401,7 +412,7 @@ class Ctx {
       // The player before the gap "just finished", so advancing hands the turn to whoever sat after them.
       s.currentIndex = (k - 1 + n) % n;
       if (ph.kind === 'drawn') s.stock.unshift(ph.card);
-      if (ph.kind === 'snap') return; // let the open snap window run out; it then advances normally
+      if (ph.kind === 'snap' || ph.kind === 'settle') return; // let it run out; the turn then advances normally
       return this.advanceTurn();
     }
   }

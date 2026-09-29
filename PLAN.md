@@ -155,6 +155,7 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - A wrong guess costs a penalty card (R15) and ends the streak. They can also stop with **Done**, or let the window run out; then the next turn starts.
   - After snapping an opponent's card, the optional give (R17) comes first, then the streak.
   - Streak snaps aren't raced, so the server applies them as they arrive rather than gathering them for reaction-time ordering (R14).
+- **R31:** **Snapping waits for looked-at or swapped cards to be back in place.** After a 7/8 or 9/10 peek, the snap window opens after a 6s viewing pause (the peek animation takes 5.6s); after a J/Q blind swap or a Black King swap, after a 1.8s pause (the swap animation takes 1.6s). Without it, the card someone might want to snap (e.g. the 7 you just looked at) would still be in the air when the window closed. Nobody can snap during the pause. A Black King that ends in **Keep them** opens the window straight away, as nothing moves.
 - **R28:** **Spam.** The server rate-limits each socket, e.g. at most 5 snaps per second. Snaps above that are dropped silently.
 
 ## 1. Repo layout (pnpm workspaces)

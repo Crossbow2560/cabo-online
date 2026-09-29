@@ -5,6 +5,10 @@ export interface Timings {
   turnMs: number;   // R25: whole turn (choose + drawn)
   choiceMs: number; // R25 / R17: ability and give-card choices
   snapMs: number;   // R12: snap window
+  /** R31: pause after a 7/8/9/10 peek before the snap window, while the peeked card is shown and put back. */
+  peekViewMs: number;
+  /** R31: pause after a swap before the snap window, while the two cards cross. */
+  swapSettleMs: number;
 }
 
 export const DEFAULT_TIMINGS: Timings = {
@@ -12,6 +16,8 @@ export const DEFAULT_TIMINGS: Timings = {
   turnMs: 60_000,
   choiceMs: 15_000,
   snapMs: 3_500,
+  peekViewMs: 6_000, // the client's peek animation is 5.6s (lib/motion.ts PEEK_MS)
+  swapSettleMs: 1_800, // the client's swap animation is 1.6s (lib/motion.ts SWAP_MS)
 };
 
 /** R2: the two cards nearest the player (bottom row of the 2x2 grid). */
@@ -44,6 +50,11 @@ export type Phase =
    */
   | { kind: 'snap'; windowId: number; onlyFor?: string }
   | { kind: 'give'; snapperId: string; targetId: string; slot: number }
+  /**
+   * R31: a short pause before the snap window while a looked-at card is shown and put back, or
+   * two swapped cards cross. The cards are in the air, so nobody could tap them anyway.
+   */
+  | { kind: 'settle'; after: 'peek' | 'swap' }
   | {
       kind: 'ended';
       /** forfeit = fewer than 2 players left after removals; the survivor wins. */

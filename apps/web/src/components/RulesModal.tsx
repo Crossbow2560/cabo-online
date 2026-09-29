@@ -53,7 +53,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           <p><b>The CABO caller’s hand is locked.</b> Once someone calls CABO, a Jack or Queen can’t blind swap with them, a Black King can look at their card but not swap it, and nobody else can snap their cards.</p>
 
           <h3>Snapping</h3>
-          <p>Whenever a card is discarded, anyone can race to throw a card of the <b>same rank</b> on top - from their own hand or someone else’s. Only the first one counts.</p>
+          <p>Whenever a card is discarded, anyone can race to throw a card of the <b>same rank</b> on top - from their own hand or someone else’s. Only the first one counts. If a special card was used to look at or swap cards, snapping opens once those cards are back in place.</p>
           <ul>
             <li>Snap your own card: you now have one fewer card.</li>
             <li>Snap an opponent’s card: you may move one of your cards into their gap.</li>
