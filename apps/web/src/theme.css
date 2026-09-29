@@ -1366,3 +1366,22 @@ button.pcard:disabled { opacity: 1; }
 
 /* ======== snap streak (R30): the first snapper's own window ======== */
 .snap-banner__done { margin-top: 4px; position: relative; z-index: 1; }
+
+/* ======== the "what to do" prompt must never be squeezed into an empty bar ======== */
+/* It keeps its own height (it used to shrink to a sliver when the felt row was short). */
+.prompt-strip { flex-shrink: 0; }
+/* Laptops and desktops: the prompt always sits beside the piles, so it never competes with them
+   for height (previously only below 720px tall; a 14" laptop is taller but still too short). */
+@media (min-width: 900px) and (orientation: landscape) {
+  .felt { flex-direction: row; gap: clamp(14px, 2.5vw, 32px); }
+  .prompt-strip { width: min(320px, 32vw); max-width: none; height: auto; text-align: left; align-items: flex-start; }
+}
+/* The top-only layout (one or no side seats) stacks the same three rows as the side layout: top
+   seats, piles, your hand. On laptops and desktops, size cards from the height that's left too. */
+@media (min-width: 900px) and (orientation: landscape) {
+  .table:not(.table--sides) {
+    --card-lg: clamp(34px, min(9vw, 9vh, calc((100vh - 350px) / 5.9)), 120px);
+    --card-md: calc(var(--card-lg) * 0.89);
+    --card-sm: calc(var(--card-lg) * 0.65);
+  }
+}
