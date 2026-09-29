@@ -52,7 +52,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           </ul>
 
           <h3>Snapping</h3>
-          <p>Whenever a card is discarded, anyone can race to throw a card of the <b>same rank</b> on top — from their own hand or someone else’s. Only the first one counts.</p>
+          <p>Whenever a card is discarded, anyone can race to throw a card of the <b>same rank</b> on top - from their own hand or someone else’s. Only the first one counts.</p>
           <ul>
             <li>Snap your own card: you now have one fewer card.</li>
             <li>Snap an opponent’s card: you may move one of your cards into their gap.</li>

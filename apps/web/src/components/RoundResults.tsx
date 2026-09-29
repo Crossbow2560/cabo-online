@@ -1,8 +1,17 @@
+import { useState } from 'react';
 import { cardValue, type PlayerView, type RoomState } from '@cabo/engine';
+import { ConfirmDialog } from './ConfirmDialog';
 import { PlayingCard } from './PlayingCard';
 
 /** Shown over the felt when a round ends: winner, everyone's revealed cards, round scores, running totals. */
-export function RoundResults({ view, room, onStart }: { view: PlayerView; room: RoomState; onStart: () => void }) {
+export function RoundResults({ view, room, onStart, onEnd }: {
+  view: PlayerView;
+  room: RoomState;
+  onStart: () => void;
+  /** Host: finish the game (final standings, back to the lobby). */
+  onEnd: () => void;
+}) {
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const result = view.result!;
   const me = view.you;
   const isHost = room.hostId === me;
@@ -52,12 +61,30 @@ export function RoundResults({ view, room, onStart }: { view: PlayerView; room: 
         ))}
       </ul>
       {isHost ? (
-        <button className="btn btn--primary" onClick={onStart} disabled={room.players.length < 2}>
-          {room.players.length < 2 ? 'Need 2 players' : 'Start next round'}
-        </button>
+        <div className="results__actions">
+          <button className="btn btn--primary" onClick={onStart} disabled={room.players.length < 2}>
+            {room.players.length < 2 ? 'Need 2 players' : 'Start next round'}
+          </button>
+          <button className="btn btn--light" onClick={() => setConfirmEnd(true)}>
+            End game
+          </button>
+        </div>
       ) : (
         <p className="results__wait">Waiting for the host to deal again…</p>
       )}
+      <ConfirmDialog
+        open={confirmEnd}
+        title="End the game?"
+        confirmLabel="End game"
+        cancelLabel="Keep playing"
+        onCancel={() => setConfirmEnd(false)}
+        onConfirm={() => {
+          setConfirmEnd(false);
+          onEnd();
+        }}
+      >
+        Everyone sees the final totals after {room.roundNo} round{room.roundNo === 1 ? '' : 's'}, and the room goes back to the lobby for a new game.
+      </ConfirmDialog>
     </div>
   );
 }

@@ -247,8 +247,19 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         {view.caboCalledBy && view.phase !== 'ended' && (
           <div className="tbar__final" title={`CABO called by ${name(view.caboCalledBy)}`}>Final round</div>
         )}
-        {view.deadline && view.phase !== 'ended' && <TimerRing frac={frac} seconds={Math.ceil(left / 1000)} />}
+        {view.deadline && view.phase !== 'ended' && !room.paused && <TimerRing frac={frac} seconds={Math.ceil(left / 1000)} />}
         <div className="tbar__spacer" />
+        {room.status === 'playing' && !room.paused && (
+          <button
+            className="btn btn--light btn--sm tbar__icon"
+            onClick={() => call((ack) => socket.emit('room:pause', ack))}
+            disabled={view.phase === 'snap'}
+            aria-label="Pause game"
+            title={view.phase === 'snap' ? 'Wait for the snap window to close' : 'Pause the game'}
+          >
+            ❚❚
+          </button>
+        )}
         <button className="btn btn--light btn--sm tbar__icon" onClick={onRules} aria-label="How to play">?</button>
         <button className="btn btn--primary btn--sm" onClick={() => setConfirmLeave(true)} aria-label="Leave game">
           Leave<span className="hide-phone"> game</span>
@@ -343,7 +354,22 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
             />
           </div>
         )}
-        {view.result && <RoundResults view={view} room={room} onStart={onStart} />}
+        {view.result && (
+          <RoundResults view={view} room={room} onStart={onStart} onEnd={() => call((ack) => socket.emit('room:end', ack))} />
+        )}
+        {room.paused && (
+          <div className="paused-overlay" role="dialog" aria-labelledby="paused-title">
+            <div className="panel paused">
+              <h2 id="paused-title" className="heading paused__title">Game paused</h2>
+              <p className="paused__by">
+                {room.paused.byId === me ? 'You paused the game.' : `${room.paused.byName} paused the game.`} Timers are stopped.
+              </p>
+              <button className="btn btn--primary" onClick={() => call((ack) => socket.emit('room:resume', ack))} autoFocus>
+                Resume
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       <footer className="tfoot">

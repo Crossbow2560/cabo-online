@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 
 /** Small themed yes/no popup on the same blurred <dialog> as the rules. */
-export function ConfirmDialog({ open, title, children, confirmLabel, onConfirm, onCancel }: {
+export function ConfirmDialog({ open, title, children, confirmLabel, cancelLabel = 'Stay', onConfirm, onCancel }: {
   open: boolean;
   title: string;
   children: React.ReactNode;
   confirmLabel: string;
+  cancelLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -29,7 +30,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel, onConfirm, 
         <h2 id="confirm-title" className="heading">{title}</h2>
         <div className="confirm__body">{children}</div>
         <div className="confirm__actions">
-          <button className="btn btn--light" onClick={onCancel} autoFocus>Stay</button>
+          <button className="btn btn--light" onClick={onCancel} autoFocus>{cancelLabel}</button>
           <button className="btn btn--primary" onClick={onConfirm}>{confirmLabel}</button>
         </div>
       </div>

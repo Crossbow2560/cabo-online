@@ -3,6 +3,7 @@ import {
   applyAction,
   BOT_LEVELS,
   type BotLevel,
+  type FinalStandings,
   createGame,
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -66,6 +67,10 @@ interface SnapBatch {
 
 export class Room {
   connected = new Set<string>();
+  /** Mid-round pause (not persisted: a restart resumes play). */
+  paused: { byId: string; byName: string; at: number } | null = null;
+  /** Final standings of the last game ended by the host, until the next deal. */
+  final: FinalStandings | null = null;
   snaps: SnapBatch | null = null;
   /** True while a snap batch is being replayed (so the replay doesn't open a new batch). */
   resolvingSnaps = false;
@@ -100,6 +105,8 @@ export class Room {
         offlineSince: this.offlineSince.get(p.sessionId) ?? null,
         totalScore: p.totalScore,
       })),
+      paused: this.paused ? { byId: this.paused.byId, byName: this.paused.byName } : null,
+      final: this.final,
     };
   }
 
@@ -289,6 +296,8 @@ export class RoomManager {
     room.rec.dealerIndex = room.rec.roundNo === 0 ? 0 : (room.rec.dealerIndex + 1) % n;
     room.rec.roundNo++;
     room.rec.status = 'playing';
+    room.final = null;
+    room.paused = null;
     for (const p of room.rec.players) this.bots.get(p.sessionId)?.brain.reset();
     room.peekStartedAt = Date.now();
     room.game = {
@@ -315,7 +324,63 @@ export class RoomManager {
   act(sessionId: string, action: Action): void {
     const room = this.roomOf(sessionId);
     if (!room?.game || room.rec.status !== 'playing') throw new GameError('No round in progress');
+    if (room.paused) throw new GameError('The game is paused');
     this.apply(room, action);
+  }
+
+  /** Anyone seated may pause a round; timers and bots freeze until someone resumes. */
+  pause(sessionId: string): void {
+    const room = this.roomOf(sessionId);
+    if (!room?.game || room.rec.status !== 'playing') throw new GameError('No round in progress');
+    if (room.paused) throw new GameError('Already paused');
+    // Each player times a snap window on their own screen, so it can't be frozen fairly.
+    if (room.game.state.phase.kind === 'snap' || room.snaps || room.resolvingSnaps) throw new GameError('Wait for the snap window to close');
+    const name = room.rec.players.find((p) => p.sessionId === sessionId)?.name ?? 'Someone';
+    room.paused = { byId: sessionId, byName: name, at: Date.now() };
+    if (room.timer) clearTimeout(room.timer);
+    room.timer = null;
+    for (const p of room.rec.players) {
+      const bot = this.bots.get(p.sessionId);
+      if (bot) this.cancelBot(bot);
+    }
+    this.out.log(`r:${room.rec.code}`, { text: `${name} paused the game` });
+    this.broadcastRoom(room);
+  }
+
+  resume(sessionId: string): void {
+    const room = this.roomOf(sessionId);
+    if (!room?.paused) throw new GameError('The game isn\'t paused');
+    const st = room.game?.state;
+    // Everyone gets back exactly the time they had left.
+    const held = Date.now() - room.paused.at;
+    if (st && st.deadline !== null) st.deadline += held;
+    room.peekStartedAt += held;
+    room.paused = null;
+    const name = room.rec.players.find((p) => p.sessionId === sessionId)?.name ?? 'Someone';
+    this.out.log(`r:${room.rec.code}`, { text: `${name} resumed the game` });
+    this.afterChange(room);
+  }
+
+  /** Host only, between rounds: the game is over. Show final standings and go back to the lobby. */
+  async end(sessionId: string): Promise<void> {
+    const room = this.roomOf(sessionId);
+    if (!room) throw new GameError('Not in a room');
+    if (room.rec.hostId !== sessionId) throw new GameError('Only the host can end the game');
+    if (room.rec.status !== 'finished') throw new GameError('Finish the round first');
+    const standings = room.rec.players
+      .map((p) => ({ id: p.sessionId, name: p.name, total: p.totalScore }))
+      .sort((a, b) => a.total - b.total);
+    const best = standings[0]?.total;
+    room.final = { standings, winners: standings.filter((s) => s.total === best).map((s) => s.id), rounds: room.rec.roundNo };
+    room.rec.status = 'lobby';
+    room.rec.roundNo = 0;
+    room.rec.dealerIndex = 0;
+    for (const p of room.rec.players) p.totalScore = 0;
+    room.game = null;
+    const names = room.final.winners.map((id) => standings.find((s) => s.id === id)!.name).join(' & ');
+    this.out.log(`r:${room.rec.code}`, { text: `Game over after ${room.final.rounds} round(s). ${names} ${room.final.winners.length > 1 ? 'win' : 'wins'}!` });
+    await room.persist(this.store, 'room');
+    this.afterChange(room);
   }
 
   private apply(room: Room, action: Action): void {
@@ -335,6 +400,7 @@ export class RoomManager {
       const scores = r.state.phase.scores;
       for (const p of room.rec.players) p.totalScore += scores[p.sessionId] ?? 0;
       room.rec.status = 'finished';
+      room.paused = null;
       what = 'both';
     }
     void room.persist(this.store, what);
@@ -354,7 +420,7 @@ export class RoomManager {
     for (const p of room.rec.players) {
       const bot = this.bots.get(p.sessionId);
       if (!bot) continue;
-      if (!st || room.rec.status !== 'playing') {
+      if (!st || room.rec.status !== 'playing' || room.paused) {
         this.cancelBot(bot);
         continue;
       }
@@ -426,6 +492,7 @@ export class RoomManager {
     if (room.resolvingSnaps) return; // resolveSnaps reschedules when it's done
     if (room.timer) clearTimeout(room.timer);
     room.timer = null;
+    if (room.paused) return; // resume() reschedules with the time that was left
     const deadline = room.game?.state.deadline;
     if (deadline == null || room.rec.status !== 'playing') {
       room.snaps = null;
@@ -468,6 +535,7 @@ export class RoomManager {
     const room = this.roomOf(sessionId);
     const b = room?.snaps;
     if (!room || !b || b.windowId !== req.windowId || room.resolvingSnaps) throw new GameError('Too slow — the snap window is closed');
+    if (room.paused) throw new GameError('The game is paused');
     if (b.done.has(sessionId)) throw new GameError('You already snapped this time');
     const elapsed = Date.now() - b.openedAt;
     // Trust the reported reaction time only within bounds: not faster than a human, and not

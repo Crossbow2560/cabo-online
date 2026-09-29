@@ -542,3 +542,107 @@ describe('server-side bots', () => {
     expect(server.rooms.rooms.has(code)).toBe(false);
   });
 });
+
+describe('pause and end game', () => {
+  const nextRoom = (b: Bot) =>
+    new Promise<import('@cabo/engine').RoomState>((res) => b.socket.once('room:state', (r) => res(r)));
+
+  it('anyone can pause: moves are refused, timers freeze and resume with the time that was left', async () => {
+    const { url, server } = await start(new MemoryStore(), undefined, { timings: { turnMs: 2_000 } });
+    const { bots, code } = await lobby(url, 2);
+    const v = await startAndReady(bots);
+    const cur = bots.find((b) => b.id === v.currentPlayerId)!;
+    const other = bots.find((b) => b !== cur)!;
+    const room = () => server.rooms.rooms.get(code)!;
+    const before = room().game!.state.deadline!;
+
+    const paused = nextRoom(cur);
+    expect((await other.emit('room:pause')).ok).toBe(true); // not their turn: anyone may pause
+    const pausedBy = (await paused).paused!;
+    expect(pausedBy.byId).toBe(other.id);
+    expect(pausedBy.byName).toBe(room().rec.players.find((p) => p.sessionId === other.id)!.name);
+    expect(await cur.emit('game:action', { type: 'DRAW_STOCK' })).toMatchObject({ ok: false, error: 'The game is paused' });
+    expect(await cur.emit('room:pause')).toMatchObject({ ok: false, error: 'Already paused' });
+
+    // Well past the 2s turn timer: nothing times out while paused.
+    await new Promise((r) => setTimeout(r, 2_300));
+    expect(room().game!.state.phase.kind).toBe('choose');
+
+    const t = Date.now();
+    expect((await cur.emit('room:resume')).ok).toBe(true);
+    const after = room().game!.state.deadline!;
+    expect(after - t).toBeGreaterThan(before - t); // pushed back by the pause
+    expect(after - before).toBeGreaterThanOrEqual(2_250);
+    expect(room().paused).toBeNull();
+    expect((await cur.emit('game:action', { type: 'DRAW_STOCK' })).ok).toBe(true);
+  });
+
+  it("can't pause during a snap window", async () => {
+    const { url } = await start(new MemoryStore(), undefined, { timings: { snapMs: 1_000 } });
+    const { bots } = await lobby(url, 2);
+    const v = await startAndReady(bots);
+    const cur = bots.find((b) => b.id === v.currentPlayerId)!;
+    await cur.emit('game:action', { type: 'DRAW_STOCK' });
+    await cur.emit('game:action', { type: 'DISCARD_DRAWN' });
+    await cur.until((x) => x.phase === 'snap');
+    for (const b of bots) expect(await b.emit('room:pause')).toMatchObject({ ok: false, error: 'Wait for the snap window to close' });
+  });
+
+  it("bots don't move while the game is paused, and carry on after", async () => {
+    // Real bot pace: an intermediate bot thinks 1-2s before each move.
+    const { url, server } = await start(new MemoryStore(), undefined, { botPace: 1 });
+    const { bots: [human], code } = await lobby(url, 1);
+    await human.emit('room:addBot', { level: 'intermediate' });
+    await human.emit('room:start');
+    await human.until((v) => v.phase === 'peek');
+    await human.emit('game:action', { type: 'READY' });
+    let v = await human.until((x) => x.phase === 'choose', 8_000);
+    if (v.currentPlayerId === human.id) {
+      await human.emit('game:action', { type: 'DRAW_STOCK', expectedVersion: v.version });
+      await human.emit('game:action', { type: 'DISCARD_DRAWN', expectedVersion: v.version + 1 });
+      await human.emit('game:action', { type: 'SKIP' }); // in case the discard had an ability
+      v = await human.until((x) => x.phase === 'choose' && x.currentPlayerId !== human.id, 5_000);
+    }
+    expect((await human.emit('room:pause')).ok).toBe(true);
+    const room = server.rooms.rooms.get(code)!;
+    const version = room.game!.state.version;
+    await new Promise((r) => setTimeout(r, 2_500));
+    expect(room.game!.state.version).toBe(version); // the bot's pending move was cancelled
+    expect((await human.emit('room:resume')).ok).toBe(true);
+    await human.until((x) => x.version > version, 5_000); // and it moves again
+  }, 30_000);
+
+  it('the host ends the game after a round: final standings for everyone, back to the lobby', async () => {
+    const { url, server } = await start();
+    const { bots, code } = await lobby(url, 2);
+    await startAndReady(bots);
+    const [host, guest] = bots;
+    expect(await host.emit('room:end')).toMatchObject({ ok: false, error: 'Finish the round first' });
+    // Finish the round: whoever's turn it is calls Cabo; the other's last turn times out.
+    const v = host.view!;
+    const cur = bots.find((b) => b.id === v.currentPlayerId)!;
+    await cur.emit('game:action', { type: 'CALL_CABO', expectedVersion: v.version });
+    await host.until((x) => x.phase === 'ended', 15_000);
+    const room = server.rooms.rooms.get(code)!;
+    const totals = Object.fromEntries(room.rec.players.map((p) => [p.sessionId, p.totalScore]));
+
+    expect(await guest.emit('room:end')).toMatchObject({ ok: false, error: 'Only the host can end the game' });
+    const next = nextRoom(guest);
+    const cleared = new Promise((res) => guest.socket.once('game:view', res));
+    expect((await host.emit('room:end')).ok).toBe(true);
+    const r = await next;
+    expect(r.status).toBe('lobby');
+    expect(r.roundNo).toBe(0);
+    expect(r.players.every((p) => p.totalScore === 0)).toBe(true);
+    expect(r.final!.rounds).toBe(1);
+    expect(r.final!.standings.map((s) => s.total)).toEqual(Object.values(totals).sort((a, b) => a - b));
+    const best = Math.min(...Object.values(totals));
+    expect(r.final!.winners).toEqual(Object.keys(totals).filter((id) => totals[id] === best));
+    expect(await cleared).toBeNull(); // no table any more
+
+    // A new game starts clean and clears the standings.
+    const fresh = nextRoom(host);
+    expect((await host.emit('room:start')).ok).toBe(true);
+    expect(await fresh).toMatchObject({ roundNo: 1, final: null });
+  }, 30_000);
+});

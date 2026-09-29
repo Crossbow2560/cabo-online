@@ -202,6 +202,9 @@ export async function createCaboServer(opts: ServerOptions) {
     }) as never);
 
     socket.on('room:start', handle(() => rooms.start(sid)) as never);
+    socket.on('room:end', handle(() => rooms.end(sid)) as never);
+    socket.on('room:pause', handle(() => rooms.pause(sid)) as never);
+    socket.on('room:resume', handle(() => rooms.resume(sid)) as never);
 
     socket.on('room:addBot', handle((req: { level?: unknown }) => {
       const level = req?.level ?? 'intermediate';

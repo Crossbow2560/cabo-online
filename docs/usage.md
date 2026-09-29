@@ -53,6 +53,11 @@ The same browser profile is always the same player. To test alone, use private w
 - Every card movement is animated, and the card that just changed glows for a moment. Swaps lift and glow both cards before they cross.
 - **Posse** (bottom-left) shows online status, away countdowns and totals. **Log** (bottom-right) shows the full event history, and messages marked "just you" are private. **?** opens the rules.
 
+## Pausing and ending a game
+
+- **Pause (❚❚ in the top bar):** anyone can pause a round, and anyone can press **Resume**. While paused, the turn timers stop, bots wait, and no moves are accepted. On resume, everyone gets back exactly the time they had left. You can't pause during a 3.5s snap window: each player's window runs on their own screen, so it can't be frozen fairly.
+- **End game:** when a round ends, the host sees **End game** next to **Start next round**. After a confirmation, everyone sees the final totals (lowest wins), and the room goes back to the lobby with totals reset, ready for a new game.
+
 ## Leaving, disconnects and timeouts
 
 - **Leave game** (with confirmation) works at any time. Mid-round, your cards go back to the stock; if only one player is left, they win ("last one standing").

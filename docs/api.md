@@ -51,6 +51,9 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `room:join` | `{ code }` | `{ ok, code }` | Allowed in `lobby`/`finished`. `A round is in progress` for newcomers mid-round; existing seats just reconnect. Maximum 8 players. |
 | `room:leave` | none | `{ ok }` | Mid-round this forfeits: your cards go back to the stock, and if one player remains they win. |
 | `room:start` | none | `{ ok }` | Host only, 2+ players. Starts round 1 or the next round; the dealer rotates left. |
+| `room:end` | none | `{ ok }` | Host only, between rounds (`Finish the round first` otherwise). Sets `RoomState.final`, resets totals and round number, back to `lobby`; everyone's `game:view` becomes `null`. |
+| `room:pause` | none | `{ ok }` | Anyone seated, mid-round. Freezes timers and bots; moves and snaps get `The game is paused`. Refused during a snap window (`Wait for the snap window to close`). |
+| `room:resume` | none | `{ ok }` | Anyone seated. Deadlines move later by the time spent paused. |
 | `room:addBot` | `{ level }` | `{ ok }` | Host only, not mid-round. Seats a server-driven bot; `level` is `beginner`, `novice`, `intermediate` (default) or `expert` (see [bots](bots.md)). `Unknown bot level` otherwise. |
 | `room:removeBot` | `{ id }` | `{ ok }` | Host only, not mid-round. `No such bot` if `id` isn't a bot in the room. |
 | `game:action` | `ClientAction` | `{ ok }` | See the actions table below. Include `expectedVersion` (from the last `game:view`) to reject stale clicks. |
@@ -95,6 +98,8 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 - `status` (`lobby` / `playing` / `finished`), `roundNo`
 - `kickAfterMs`
 - `players[]`: `{ id, name, connected, bot, botLevel, offlineSince, totalScore }` (`botLevel` is `null` for humans)
+- `paused`: `{ byId, byName } | null`
+- `final`: `{ standings: { id, name, total }[], winners, rounds } | null`, the last game's final totals (lowest first), until the next deal
 
 **`PlayerView`** (key fields):
 - `you`, `version`, `phase`, `currentPlayerId`, `dealerId`

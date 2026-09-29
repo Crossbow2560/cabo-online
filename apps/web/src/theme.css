@@ -1270,3 +1270,33 @@ button.pcard:disabled { opacity: 1; }
 .table--sides .seats { overflow: visible; }
 /* where the top row does scroll (phones, portrait tablets), leave room above for lifts and glows */
 .seats { padding-top: 10px; }
+
+/* ======== round results: host's next-round / end-game choice ======== */
+.results__actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+/* ======== pause ======== */
+.paused-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--saddle-deep) 40%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.paused { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 22px 28px; width: min(360px, 90%); }
+.paused__title { font-size: clamp(24px, 4vh, 34px); }
+.paused__by { margin: 0; font-weight: 700; color: var(--leather); }
+
+/* ======== game over: final standings ======== */
+.final { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 20px 22px; }
+.final__title { font-size: clamp(22px, 3.6vh, 30px); }
+.final__why { margin: 0; font-weight: 700; color: var(--leather); }
+.final__list { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 4px; }
+.final__row { display: grid; grid-template-columns: 2em 1fr auto; align-items: center; gap: 8px; padding: 8px 12px; border-top: 2px dotted var(--leather); text-align: left; }
+.final__row--win { background: var(--sand); border-radius: 12px; border-top-color: transparent; }
+.final__place { font-family: var(--font-display); color: var(--leather); }
+.final__name { font-weight: 800; overflow-wrap: anywhere; }
+.final__total { font-family: var(--font-display); font-size: 22px; }

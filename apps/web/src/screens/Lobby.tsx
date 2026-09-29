@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type RoomState } from '@cabo/engine';
 import { CopyField } from '../components/CopyField';
+import { FinalResults } from '../components/FinalResults';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
 import { usePublicUrl } from '../lib/config';
@@ -29,6 +30,9 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
   const enough = room.players.length >= MIN_PLAYERS;
   const emptyRows = Math.max(0, MIN_ROWS - room.players.length);
   const [levelsOpen, setLevelsOpen] = useState(false);
+  // The room state is re-sent often; remember which game's standings were dismissed, not the object.
+  const finalKey = room.final ? room.final.standings.map((s) => `${s.id}:${s.total}`).join(',') + `/${room.final.rounds}` : null;
+  const [dismissedFinal, setDismissedFinal] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close the level menu on an outside click or Escape.
@@ -48,6 +52,9 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
 
   return (
     <main className="screen screen--top">
+      {room.final && finalKey !== dismissedFinal && (
+        <FinalResults final={room.final} me={me} onClose={() => setDismissedFinal(finalKey)} />
+      )}
       <Title size="md" />
 
       <h2 className="greeting lobby__heading">

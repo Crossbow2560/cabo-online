@@ -33,6 +33,13 @@ export interface RoomPlayerInfo {
   totalScore: number;
 }
 
+/** Shown to everyone when the host ends the game: players by final total, lowest first. */
+export interface FinalStandings {
+  standings: { id: string; name: string; total: number }[];
+  winners: string[];
+  rounds: number;
+}
+
 export interface RoomState {
   code: string;
   hostId: string;
@@ -40,6 +47,10 @@ export interface RoomState {
   roundNo: number;
   kickAfterMs: number;
   players: RoomPlayerInfo[];
+  /** Mid-round pause: timers and bots are frozen and no moves are accepted until someone resumes. */
+  paused: { byId: string; byName: string } | null;
+  /** The previous game's final standings (set when the host ends a game; cleared on the next deal). */
+  final: FinalStandings | null;
 }
 
 export type Ack<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
@@ -57,6 +68,11 @@ export interface ClientToServer {
   'room:join': (req: { code: string }, ack: (r: Ack<{ code: string }>) => void) => void;
   'room:leave': (ack: (r: Ack) => void) => void;
   'room:start': (ack: (r: Ack) => void) => void;
+  /** Host only, between rounds: finish the game, show final standings, back to the lobby. */
+  'room:end': (ack: (r: Ack) => void) => void;
+  /** Anyone seated, mid-round (not during a snap window). */
+  'room:pause': (ack: (r: Ack) => void) => void;
+  'room:resume': (ack: (r: Ack) => void) => void;
   /** Host only, between rounds. */
   'room:addBot': (req: { level: BotLevel }, ack: (r: Ack) => void) => void;
   'room:removeBot': (req: { id: string }, ack: (r: Ack) => void) => void;

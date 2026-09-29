@@ -63,6 +63,11 @@ These start a real server on a random port (`createCaboServer` with short timing
   - removing a bot frees its seat;
   - the last human leaving closes the room;
   - a scripted human plays two full rounds against three bots, with card conservation and no refused bot moves.
+- **Pause and end game:**
+  - anyone can pause; moves are refused, timers don't fire, and deadlines resume with the time that was left;
+  - pausing is refused during a snap window;
+  - a bot's pending move is cancelled while paused and it carries on after;
+  - only the host can end the game, only between rounds; everyone gets the final standings, totals reset, and a new game starts clean.
 - **Persistence:** a round in progress survives a server restart, with both `MemoryStore` and (when `TEST_DATABASE_URL` is set) `PgStore`.
 
 ## What isn't automated
