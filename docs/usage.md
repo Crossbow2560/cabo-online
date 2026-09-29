@@ -1,0 +1,75 @@
+# Usage guide
+
+## Starting a game
+
+1. Open the site and choose **Play now**, then enter a nickname. Your identity is saved in this browser, so reloading keeps your seat.
+2. Choose **Create room**. The lobby shows an **invite link** and a **room code**, each with a Copy button.
+3. Friends open the link (the code is pre-filled), or tap **Join room** and type the code.
+4. The host presses **Start game** once there are 2–8 players.
+
+The same browser profile is always the same player. To test alone, use private windows or different browsers.
+
+## Playing a round
+
+- **Peek (20s):** your two nearest cards (bottom row, #3 and #4) are shown face-up. Memorise them, then press **I've memorised them**. Afterwards you can't look at your cards unless an ability lets you.
+- **Your turn:**
+  - **Tap the stock** to draw. The card appears under "You drew". Then **tap one of your cards** to keep the new card (the old one goes to the discard), or press **Discard it**.
+  - **Tap the discard** to take it, then tap one of your cards to swap with it. Tap the discard again to cancel.
+  - **Call CABO**, the only button. Everyone else gets one final turn (a "Final round" tag appears), then all cards are revealed.
+- **Abilities:** these trigger only when you discard a card you just drew. A badge on the discard names the ability in play.
+
+  | Card | Ability |
+  |---|---|
+  | 7 / 8 | **Peek at yours:** tap one of your cards to see it. |
+  | 9 / 10 | **Spy:** tap an opponent's card to see it. |
+  | J / Q | **Blind swap:** tap one of your cards, then an opponent's. |
+  | Black K | **Look & swap:** tap an opponent's card, then one of yours. Both stay face-up for you; then choose **Swap them** or **Keep them**. |
+
+  **Skip ability** is always available. The peeked card lifts toward you for a few seconds; other players see which card you looked at, but not its value.
+- **Snapping:** after any discard there's a 3.5s **SNAP!** window. Tap any card, yours or an opponent's, that you think matches the discard's rank.
+  - The first correct snap wins; later ones are "too slow", with no penalty.
+  - A wrong guess shows the card to everyone, puts it back, and gives you a face-down penalty card.
+  - If you snapped an opponent's card, you may tap one of yours to give them, or press **Don't give a card**.
+- **Scoring:**
+
+  | Card | Points |
+  |---|---|
+  | Joker | −1 |
+  | Red King | 0 |
+  | Ace | 1 |
+  | 2–10 | face value |
+  | Jack | 11 |
+  | Queen | 12 |
+  | Black King | 13 |
+
+  Gaps count 0. The lowest total wins the round, and ties share the win. Running totals are shown in the results and in the **Posse** card.
+
+## The table
+
+- Your hand is at the bottom, numbered #1–#4. Penalty cards are added as #5, #6 and so on in extra columns.
+- Opponents' hands are turned to face you: a player across the table shows their `1 2 / 3 4` as `4 3 / 2 1`. On large screens with 3+ players they sit left, top and right, clockwise from your left. Phones keep everyone on top.
+- Every card movement is animated, and the card that just changed glows for a moment. Swaps lift and glow both cards before they cross.
+- **Posse** (bottom-left) shows online status, away countdowns and totals. **Log** (bottom-right) shows the full event history, and messages marked "just you" are private. **?** opens the rules.
+
+## Leaving, disconnects and timeouts
+
+- **Leave game** (with confirmation) works at any time. Mid-round, your cards go back to the stock; if only one player is left, they win ("last one standing").
+- **If you disconnect:**
+  - You keep your seat, and others see an "away" countdown.
+  - After 5 minutes offline you're removed automatically.
+  - Reconnecting within that time cancels the countdown.
+  - At the start of a round, the peek phase waits (up to 60s) for offline players.
+- **Timeouts:**
+  - If you take longer than 60s on a turn, the game draws and discards for you.
+  - If you take longer than 15s on an ability or give choice, it's skipped.
+
+## Common problems
+
+| Symptom | Cause / fix |
+|---|---|
+| "Opened elsewhere" | The same player is open in another tab. Press **Use it here**, or close the other tab. |
+| "A round is in progress" when joining | New players can join only in the lobby or between rounds. Wait for the round to end. |
+| "Game state changed, try again" | The screen was a step behind (e.g. a double tap). Just act again. |
+| "Too slow — the snap window is closed" | Someone else snapped first, or the 3.5s window ended. No penalty. |
+| Stuck on "Saddling up…" | The client is waiting for the server. It retries automatically, so check the server is running and reachable. |
+| Invite link shows the wrong address | Set `PUBLIC_URL` on the server (see [installation](installation.md)). |

@@ -1,82 +1,68 @@
-# Cabo (online MVP)
+# Cabo
 
-Bare-bones multiplayer Cabo: guest sessions, rooms with invite codes, and the full rule set with server-authoritative, redacted game state. See [PLAN.md](PLAN.md) for the rules and rulings R1–R28.
+A real-time multiplayer web version of **Cabo**, the memory card game where the lowest hand wins. Wild-west themed, playable in the browser on desktop, tablet and phone.
 
-```
-packages/engine   pure rules engine (reducer, redaction, scoring) + tests
-apps/server       Node + Socket.IO + Postgres (Supabase) persistence
-apps/web          React + Vite client (unstyled)
-supabase/migrations/0001_init.sql
-```
+## 📚 Documentation
+| | |
+|---|---|
+| [⚙️ Architecture](docs/architecture.md) | System design, components and flow |
+| [📁 Structure](docs/structure.md) | Project organization and responsibilities |
+| [🚀 Installation](docs/installation.md) | Requirements and steps to run the project |
+| [🧠 Technical decisions](docs/decisions.md) | Trade-offs and design justifications |
+| [📖 Usage guide](docs/usage.md) | How to play, flows and edge cases |
+| [🔌 API](docs/api.md) | HTTP endpoints and Socket.IO events |
+| [🧪 Testing](docs/testing.md) | How to run tests and what they cover |
 
-## Run locally
+The full rule set and every ruling the engine enforces (R1–R28) live in [PLAN.md](PLAN.md).
+
+---
+
+## Description
+
+- **What it does:** lets 2–8 players create a room, share an invite link, and play Cabo in real time. That covers the peek at your two nearest cards, drawing, swapping, the special-card abilities (7/8 peek, 9/10 spy, J/Q blind swap, black King look & swap), snapping matching cards, and calling CABO for the final round.
+- **What problem it solves:** Cabo depends on hidden information and on races (snapping). Played online, the server has to be the only source of truth. It never sends a player a card they aren't entitled to see, and it decides snap races in arrival order.
+- **Real use case:** a group of friends open `https://cabo.nishit-db.com/?room=ABC123` on their phones and play a few rounds. Running totals are kept per room. Players who drop off are auto-removed after 5 minutes, and a server restart restores games in progress from Postgres.
+
+## Quick start
 
 ```bash
 npm install
-npm run dev:server   # :3101 — in-memory storage unless DATABASE_URL is set
-npm run dev:web      # :5173 — proxies /api and /socket.io to :3101
+npm run dev:server   # game server on http://localhost:3101 (in-memory storage)
+npm run dev:web      # Vite dev server on http://localhost:5173
 ```
 
-Open http://localhost:5173, pick a nickname, create a room, and share the invite link. To test with several players on one machine, use separate browser profiles or private windows, because the session token lives in localStorage.
+Open http://localhost:5173, pick a nickname, create a room, and open the invite link in a **private window** to add a second player (each browser profile is one player).
 
-## Supabase
+## Technologies used
 
-The project `fpcmlrpvtwarhivkuwwz` already has the migrations in `supabase/migrations/` applied.
+- **Game engine:** pure TypeScript with a seeded RNG, and no I/O (`packages/engine`).
+- **Server:** Node 24, Express 4, Socket.IO 4, run directly from TypeScript with `tsx`.
+- **Client:** React 18, Vite 5, and plain CSS. There is no router or state library. Card animations use the Web Animations API.
+- **Database:** Supabase Postgres, accessed through `postgres` (postgres.js), with an in-memory fallback.
+- **Testing:** Vitest, with `socket.io-client` bots for the integration tests.
+- **Deployment:** Docker (a single container) and a GitHub Actions workflow that deploys through a self-hosted runner.
 
-1. Copy `apps/server/.env.example` to `apps/server/.env`.
-2. Paste the **Session pooler** connection string (Dashboard → Connect) as `DATABASE_URL`, with your DB password filled in.
-3. Restart the server. It logs `restored N room(s)` instead of the in-memory warning.
+## Quick installation
 
-Only the server talks to the database. RLS is on with no policies, so the public Supabase APIs can't read game state.
+1. `npm install`
+2. Optional: create `apps/server/.env` with `DATABASE_URL` (Supabase session pooler) and `PUBLIC_URL`.
+3. Run `npm run dev:server` and `npm run dev:web`, or `docker compose up -d --build` for production.
 
-## Production-ish
+Details: [docs/installation.md](docs/installation.md)
 
-```bash
-npm run build -w @cabo/web
-DATABASE_URL=... npm start -w @cabo/server   # also serves apps/web/dist
+## Architecture (summary)
+
+A pure rules engine (`packages/engine`) turns `(state, action, now)` into a new state plus events. The Node server owns one authoritative state per room, applies player actions strictly in arrival order, and sends each player a **redacted view** (`redactFor`) plus public and private events. The React client renders only what it receives and animates card movement from the `motion` data attached to events. Postgres stores sessions, rooms and a snapshot of each game after every action. More: [docs/architecture.md](docs/architecture.md)
+
+## Project structure
+
+```
+packages/engine/   rules engine, redaction, protocol types (+ tests)
+apps/server/       Express + Socket.IO game server, room manager, Postgres store (+ tests)
+apps/web/          React client: screens, table, card animations, theme
+supabase/          SQL migrations
+.github/workflows/ test + deploy pipeline
+Dockerfile, docker-compose.yml
 ```
 
-## Self-hosting with Docker
-
-One container serves the game server and the built web client on port 3101.
-
-```bash
-# on your server, in the repo
-cp apps/server/.env.example apps/server/.env   # set DATABASE_URL and PUBLIC_URL
-docker compose up -d --build
-```
-
-Environment (in `apps/server/.env`): `DATABASE_URL` — Supabase session-pooler string (unset = in-memory);
-`PUBLIC_URL` — the address players use, e.g. `https://cabo.nishit-db.com`, used for invite links (unset = whatever
-address the page was opened on); `PORT` — defaults to 3101.
-
-Put it behind your usual reverse proxy for https (e.g. Caddy: `cabo.example.com { reverse_proxy localhost:3101 }`).
-WebSockets pass through Caddy/nginx fine; with nginx, forward the `Upgrade`/`Connection` headers.
-Update later with `git pull && docker compose up -d --build`, or let CI do it (below).
-
-### Auto-deploy on push (GitHub Actions + self-hosted runner)
-
-`.github/workflows/deploy.yml` runs on every push to `main`: typecheck, tests and a web build on
-GitHub's runner, then, if they pass, `docker compose -p cabo up -d --build` on **your server's**
-self-hosted runner, and waits for the container to report healthy.
-
-One-time setup:
-1. **Server:** install Docker, then add a runner: repo → *Settings → Actions → Runners → New self-hosted
-   runner* (Linux) and follow the commands. Install it as a service (`sudo ./svc.sh install && sudo ./svc.sh start`)
-   and put the runner's user in the `docker` group (`sudo usermod -aG docker <user>`, then restart the service).
-2. **Env file:** after the first deploy run (it will stop at "apps/server/.env is missing"), create
-   `apps/server/.env` with `DATABASE_URL=<Supabase session-pooler string>` and `PUBLIC_URL=https://cabo.nishit-db.com` inside the runner's checkout, e.g.
-   `~/actions-runner/_work/cabo-online/cabo-online/apps/server/.env` (`chmod 600`), then re-run the workflow.
-   The workflow checks out with `clean: false`, so the file survives later deploys. Re-create it if you
-   ever reinstall the runner.
-3. Push to `main` (or use *Actions → Test & deploy → Run workflow*).
-
-Keep the self-hosted runner on push-only workflows. If the repo is public, set *Settings → Actions →
-Fork pull request workflows* to require approval, so strangers' PRs can't run code on your server.
-
-## Tests
-
-```bash
-npm test                                          # engine + server integration
-TEST_DATABASE_URL=postgres://... npm test -w @cabo/server   # also runs the restart test against Postgres
-```
+More: [docs/structure.md](docs/structure.md)
