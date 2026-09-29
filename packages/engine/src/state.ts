@@ -11,7 +11,7 @@ export const DEFAULT_TIMINGS: Timings = {
   peekMs: 15_000,
   turnMs: 60_000,
   choiceMs: 15_000,
-  snapMs: 3_000,
+  snapMs: 3_500,
 };
 
 /** R2: the two cards nearest the player (bottom row of the 2x2 grid). */

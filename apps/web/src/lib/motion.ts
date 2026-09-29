@@ -16,9 +16,12 @@ const STAGGER_MS = 150;
 const SETTLE_MS = 280;
 const CHANGED_MS = 2600;
 const STALE_MS = 2500;
-const PEEK_MS = 3600; // peeker: lift → flip up → hold ~2.4s → flip down → return
-const PEEK_WATCH_MS = 1800; // everyone else: card lifts toward the peeker and comes back
-const REVEAL_HOLD_MS = 2400; // reduced-motion fallback for the peeker
+const PEEK_MS = 5600; // peeker: lift → flip up → hold ~4.4s → flip down → return
+const PEEK_WATCH_MS = 2800; // everyone else: card lifts toward the peeker and comes back
+const REVEAL_HOLD_MS = 4400; // reduced-motion fallback for the peeker
+const SWAP_MS = 1600; // swaps: both cards lift and glow in place, then cross slowly
+const SWAP_LIFT = 0.47; // fraction of SWAP_MS spent lifted in place (~750ms) before crossing
+const SWAP_CHANGED_MS = CHANGED_MS + 750;
 
 interface CapturedMove {
   from: Spot;
@@ -135,11 +138,17 @@ export function playMotions(me: string) {
   for (const p of items) {
     const sources = new Set(p.moves.map((m) => spotKey(m.from)));
     let span = 0;
-    p.moves.forEach((m, i) => {
-      const underlay = m.to.at === 'discard' && !sources.has('discard') ? m.toPrevLook : null;
-      fly({ ...m, underlay, arc: i % 2 === 0 ? 1 : -1 }, offset + i * STAGGER_MS);
-      span = Math.max(span, i * STAGGER_MS + FLY_MS);
-    });
+    if (isSwap(p.moves)) {
+      // Both cards lift together so everyone can see which two are trading places, then cross.
+      p.moves.forEach((m, i) => fly({ ...m, arc: i === 0 ? 1 : -1, swap: true }, offset));
+      span = SWAP_MS;
+    } else {
+      p.moves.forEach((m, i) => {
+        const underlay = m.to.at === 'discard' && !sources.has('discard') ? m.toPrevLook : null;
+        fly({ ...m, underlay, arc: i % 2 === 0 ? 1 : -1 }, offset + i * STAGGER_MS);
+        span = Math.max(span, i * STAGGER_MS + FLY_MS);
+      });
+    }
     for (const f of p.flash) {
       window.setTimeout(() => flash(f.spot, f.card), offset);
       span = Math.max(span, 400);
@@ -170,7 +179,15 @@ export function playDeal(playerIds: string[], slotsPerPlayer: number) {
 
 // ---------------------------------------------------------------- flights
 
+/** Two cards trading slots (blind swap, look & swap). */
+function isSwap(moves: CapturedMove[]) {
+  if (moves.length !== 2) return false;
+  const [a, b] = moves;
+  return a.from.at === 'slot' && a.to.at === 'slot' && spotKey(a.from) === spotKey(b.to) && spotKey(a.to) === spotKey(b.from);
+}
+
 interface Flight {
+  swap?: boolean;
   from: Spot;
   to: Spot;
   card?: Card;
@@ -227,23 +244,39 @@ function fly(f: Flight, delay: number) {
   const s = f.fromRect.width / toRect.width;
   const lift = Math.min(70, 16 + Math.hypot(dx, dy) * 0.18) * (f.arc ?? 1);
   const tilt = (dx > 0 ? -6 : 6) * (f.arc ?? 1);
-  const move = flyer.animate(
-    [
-      { transform: `translate(${dx}px, ${dy}px) scale(${s})`, filter: 'drop-shadow(0 3px 0 var(--saddle-deep))' },
-      {
-        offset: 0.5,
-        transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(${((s + 1) / 2) * 1.14}) rotate(${tilt}deg)`,
-        filter: 'drop-shadow(0 18px 14px var(--saddle-soft))',
-      },
-      { transform: 'none', filter: 'drop-shadow(0 3px 0 var(--saddle-deep))', ...(target ? {} : { opacity: 0 }) },
-    ],
-    { duration: FLY_MS, delay, easing: 'cubic-bezier(.3,.7,.25,1)', fill: 'backwards' },
-  );
+  const at = `translate(${dx}px, ${dy}px) scale(${s})`;
+  const rest = 'drop-shadow(0 3px 0 var(--saddle-deep))';
+  const glow = 'drop-shadow(0 0 3px var(--cream)) drop-shadow(0 0 10px var(--sand)) drop-shadow(0 12px 10px var(--saddle-soft))';
+  const duration = f.swap ? SWAP_MS : FLY_MS;
+  const keyframes: Keyframe[] = f.swap
+    ? [
+        // lift + glow in place (~750ms) so it's clear which cards are swapping...
+        { transform: at, filter: rest },
+        { offset: 0.12, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18})`, filter: glow },
+        { offset: SWAP_LIFT, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18})`, filter: glow },
+        // ...then cross on opposite arcs
+        {
+          offset: SWAP_LIFT + (1 - SWAP_LIFT) / 2,
+          transform: `translate(${dx * 0.5}px, ${dy * 0.5 - lift * 1.4}px) scale(${((s + 1) / 2) * 1.2}) rotate(${tilt}deg)`,
+          filter: glow,
+        },
+        { transform: 'none', filter: rest },
+      ]
+    : [
+        { transform: at, filter: rest },
+        {
+          offset: 0.5,
+          transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(${((s + 1) / 2) * 1.14}) rotate(${tilt}deg)`,
+          filter: 'drop-shadow(0 18px 14px var(--saddle-soft))',
+        },
+        { transform: 'none', filter: rest, ...(target ? {} : { opacity: 0 }) },
+      ];
+  const move = flyer.animate(keyframes, { duration, delay, easing: f.swap ? 'ease-in-out' : 'cubic-bezier(.3,.7,.25,1)', fill: 'backwards' });
   const inner = flyer.firstElementChild as HTMLElement;
   if (turns) {
     inner.animate(
       [{ transform: 'rotateY(0deg)' }, { offset: 0.3, transform: 'rotateY(0deg)' }, { offset: 0.72, transform: 'rotateY(180deg)' }, { transform: 'rotateY(180deg)' }],
-      { duration: FLY_MS, delay, easing: 'ease-in-out', fill: 'both' },
+      { duration, delay, easing: 'ease-in-out', fill: 'both' },
     );
   } else {
     (inner.lastElementChild as HTMLElement).style.display = 'none';
@@ -257,11 +290,11 @@ function fly(f: Flight, delay: number) {
     under?.remove();
     if (target) {
       target.style.visibility = '';
-      if (markChanged) mark(target);
+      if (markChanged) mark(target, f.swap ? SWAP_CHANGED_MS : CHANGED_MS);
     }
   };
   move.finished.then(done, done);
-  window.setTimeout(done, delay + FLY_MS + 400); // safety net: never leave a card hidden
+  window.setTimeout(done, delay + duration + 400); // safety net: never leave a card hidden
 }
 
 /** Cards that shifted because the layout changed (new penalty column, piles re-centring) glide over. */
@@ -307,21 +340,21 @@ function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: n
     const move = flyer.animate(
       [
         { transform: at },
-        { offset: 0.13, transform: 'translateY(-6px) rotate(-2deg)' },
-        { offset: 0.86, transform: 'translateY(0) rotate(1deg)' },
+        { offset: 0.084, transform: 'translateY(-6px) rotate(-2deg)' },
+        { offset: 0.91, transform: 'translateY(0) rotate(1deg)' },
         { transform: at },
       ],
       { duration: PEEK_MS, easing: 'ease-in-out' },
     );
     (flyer.firstElementChild as HTMLElement).animate(
       staysUp
-        ? [{ transform: 'rotateY(0)' }, { offset: 0.12, transform: 'rotateY(0)' }, { offset: 0.24, transform: 'rotateY(180deg)' }, { transform: 'rotateY(180deg)' }]
+        ? [{ transform: 'rotateY(0)' }, { offset: 0.077, transform: 'rotateY(0)' }, { offset: 0.154, transform: 'rotateY(180deg)' }, { transform: 'rotateY(180deg)' }]
         : [
             { transform: 'rotateY(0)' },
-            { offset: 0.12, transform: 'rotateY(0)' },
-            { offset: 0.24, transform: 'rotateY(180deg)' },
-            { offset: 0.74, transform: 'rotateY(180deg)' },
-            { offset: 0.86, transform: 'rotateY(0)' },
+            { offset: 0.077, transform: 'rotateY(0)' },
+            { offset: 0.154, transform: 'rotateY(180deg)' },
+            { offset: 0.833, transform: 'rotateY(180deg)' },
+            { offset: 0.91, transform: 'rotateY(0)' },
             { transform: 'rotateY(0)' },
           ],
       { duration: PEEK_MS, easing: 'ease-in-out', fill: 'both' },
@@ -380,11 +413,12 @@ function viewingRect(card: DOMRect): DOMRect {
 // ---------------------------------------------------------------- wrong snap + changed marker
 
 /** A lingering glow on a card that just changed, so players can see what was replaced. */
-function mark(el: HTMLElement) {
+function mark(el: HTMLElement, ms = CHANGED_MS) {
   el.removeAttribute('data-changed');
   void el.offsetWidth; // restart the CSS animation
+  el.style.setProperty('--changed-ms', `${ms}ms`);
   el.setAttribute('data-changed', '');
-  window.setTimeout(() => el.removeAttribute('data-changed'), CHANGED_MS);
+  window.setTimeout(() => el.removeAttribute('data-changed'), ms);
 }
 
 /** Wrong snap: wiggle the card and show its face to everyone for a moment. */
