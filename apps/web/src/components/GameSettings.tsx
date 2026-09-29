@@ -10,13 +10,7 @@ const TIMERS: { key: 'peekMs' | 'turnMs' | 'choiceMs' | 'snapMs'; label: string;
   { key: 'peekMs', label: 'Memorise time', hint: 'Looking at your two cards at the start of a round' },
 ];
 
-/** One line for the lobby: what the host has set. */
-export function settingsSummary(s: GameSettings): string {
-  const limit = s.maxPoints === null ? 'No points limit' : `Reach ${s.maxPoints} points and you lose`;
-  return `${limit} · Think ${secs(s.turnMs)} · Snap ${secs(s.snapMs)}`;
-}
-
-/** Lobby ⚙: points limit and timers. The host edits; everyone else sees them read-only. */
+/** Lobby ⚙ (host only, beside Start game): points limit and timers. */
 export function GameSettingsDialog({ settings, canEdit, onSave, onClose }: {
   settings: GameSettings;
   canEdit: boolean;

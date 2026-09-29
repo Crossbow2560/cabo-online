@@ -3,7 +3,7 @@ import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type GameSettings,
 import { CopyField } from '../components/CopyField';
 import { FinalResults } from '../components/FinalResults';
 import { SoundControl } from '../components/SoundControl';
-import { GameSettingsDialog, settingsSummary } from '../components/GameSettings';
+import { GameSettingsDialog } from '../components/GameSettings';
 import { useMusic } from '../lib/sound';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
@@ -76,13 +76,10 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
   return (
     <main className="screen screen--top">
       <div className="corner-controls">
-        <button className="btn btn--light btn--sm tbar__icon" onClick={() => setSettingsOpen(true)} aria-label="Game settings" title="Game settings">
-          <Icon name="cog" className="tbar__svg" />
-        </button>
         <SoundControl />
       </div>
-      {settingsOpen && (
-        <GameSettingsDialog settings={room.settings} canEdit={isHost} onSave={onSettings} onClose={() => setSettingsOpen(false)} />
+      {settingsOpen && isHost && (
+        <GameSettingsDialog settings={room.settings} canEdit onSave={onSettings} onClose={() => setSettingsOpen(false)} />
       )}
       {room.final && finalKey !== dismissedFinal && (
         <FinalResults final={room.final} me={me} onClose={() => setDismissedFinal(finalKey)} />
@@ -200,14 +197,22 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
       </section>
 
       <div className="lobby__start stack">
-        <button className="lobby__settings" onClick={() => setSettingsOpen(true)}>
-          ⚙ {settingsSummary(room.settings)}
-        </button>
         {isHost ? (
           <>
-            <button className="btn btn--primary btn--lg" onClick={onStart} disabled={!enough}>
-              Start game
-            </button>
+            {/* The host's game settings sit right beside Start. */}
+            <div className="lobby__start-row">
+              <button className="btn btn--primary btn--lg" onClick={onStart} disabled={!enough}>
+                Start game
+              </button>
+              <button
+                className="btn btn--light btn--lg lobby__settings-btn"
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Game settings"
+                title="Game settings"
+              >
+                <Icon name="cog" className="lobby__settings-icon" />
+              </button>
+            </div>
             {!enough && <p className="hint">Need at least {MIN_PLAYERS} players — share the link above</p>}
           </>
         ) : (

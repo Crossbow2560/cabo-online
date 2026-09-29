@@ -68,7 +68,7 @@ The speaker button (in the table's top bar between pause and **?**, and in the l
 
 ## Game settings (lobby ⚙)
 
-The ⚙ button in the lobby's top-right corner opens the game settings; a one-line summary sits above **Start game**. Only the host can change them (between rounds), and everyone can see them. They're saved with the room.
+The host has a ⚙ button beside **Start game** that opens the game settings. Only the host sees it and can change them (between rounds). They're saved with the room.
 
 | Setting | Range | Default |
 |---|---|---|
