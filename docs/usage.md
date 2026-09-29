@@ -47,7 +47,7 @@ The same browser profile is always the same player. To test alone, use private w
 ## The table
 
 - Your hand is at the bottom, numbered #1–#4. Penalty cards are added as #5, #6 and so on in extra columns.
-- Opponents' hands are turned to face you: a player across the table shows their `1 2 / 3 4` as `4 3 / 2 1`. On large screens with 3+ players they sit left, top and right, clockwise from your left. Phones keep everyone on top.
+- Opponents' hands are turned to face you: a player across the table shows their `1 2 / 3 4` as `4 3 / 2 1`. On large screens with 3+ players they sit left, top and right, clockwise from your left. Players on the left and right have their cards turned sideways, facing them. Phones keep everyone on top.
 - Every card movement is animated, and the card that just changed glows for a moment. Swaps lift and glow both cards before they cross.
 - **Posse** (bottom-left) shows online status, away countdowns and totals. **Log** (bottom-right) shows the full event history, and messages marked "just you" are private. **?** opens the rules.
 

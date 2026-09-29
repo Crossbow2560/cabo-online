@@ -20,8 +20,10 @@ export function Hand({ slots, size, state, onCard, showLabels = false, ownerName
   orient?: Orient;
 }) {
   const maxC = slots.reduce((m, _, i) => Math.max(m, slotCoords(i).c), 1);
+  // Side seats: each card is turned 90° to face its owner (lib/motion.ts reads data-turn).
+  const turn = orient === 'left' ? 90 : orient === 'right' ? -90 : 0;
   return (
-    <div className={`hand hand--${size}`}>
+    <div className={`hand hand--${size} ${turn ? `hand--turn hand--turn-${orient}` : ''}`} data-turn={turn || undefined}>
       {slots.map((s, i) => {
         const st = state(i);
         return (

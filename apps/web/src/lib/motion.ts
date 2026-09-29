@@ -28,6 +28,7 @@ interface CapturedMove {
   to: Spot;
   card?: Card;
   fromRect: DOMRect | null;
+  fromTurn: number; // degrees the source card is turned (side seats)
   fromLook: HTMLElement | null; // clone of the source card as it looked
   toPrevLook: HTMLElement | null; // clone of the destination before the change (underlay)
 }
@@ -58,17 +59,45 @@ function cardEl(spot: Spot): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-spot="${spotKey(spot)}"]`);
 }
 
-/** Where a spot is on screen. An opponent's held card has no element: use a card-sized box on their seat. */
+/** How far a card is turned on screen: side seats show their cards at ±90° (see Hand). */
+function turnOf(el: Element | null | undefined): number {
+  return Number(el?.closest<HTMLElement>('[data-turn]')?.dataset.turn ?? 0);
+}
+
+/**
+ * A card's box as if it were upright (same centre), so flights can size a portrait card and
+ * rotate it by `turnOf` instead. For an unturned card this is just its bounding box.
+ */
+function boxOf(el: Element): DOMRect {
+  const r = el.getBoundingClientRect();
+  if (turnOf(el) % 180 === 0) return r;
+  return new DOMRect(r.left + (r.width - r.height) / 2, r.top + (r.height - r.width) / 2, r.height, r.width);
+}
+
+/** The card an opponent's held card stands in for (it has no element of its own). */
+const heldSample = (spot: Spot) =>
+  spot.at === 'held' ? document.querySelector<HTMLElement>(`[data-seat="${spot.playerId}"] .pcard`) : null;
+
+/** Where a spot is on screen (upright box). An opponent's held card: a card-sized box on their seat. */
 function rectOf(spot: Spot): DOMRect | null {
   const el = cardEl(spot);
-  if (el) return el.getBoundingClientRect();
+  if (el) return boxOf(el);
   if (spot.at !== 'held') return null;
   const seat = document.querySelector<HTMLElement>(`[data-seat="${spot.playerId}"]`);
-  const sample = seat?.querySelector<HTMLElement>('.pcard');
+  const sample = heldSample(spot);
   if (!seat || !sample) return null;
   const s = seat.getBoundingClientRect();
-  const c = sample.getBoundingClientRect();
+  const c = boxOf(sample);
   return new DOMRect(s.left + (s.width - c.width) / 2, s.top + (s.height - c.height) / 2, c.width, c.height);
+}
+
+const turnAt = (spot: Spot) => turnOf(cardEl(spot) ?? heldSample(spot));
+
+/** A screen-space offset expressed inside a card turned by `deg` (for animating the card itself). */
+function unturn(dx: number, dy: number, deg: number): [number, number] {
+  if (!deg) return [dx, dy];
+  const a = (-deg * Math.PI) / 180;
+  return [dx * Math.cos(a) - dy * Math.sin(a), dx * Math.sin(a) + dy * Math.cos(a)];
 }
 
 /** A detached copy of a card's current look (without interaction/animation state). */
@@ -100,6 +129,7 @@ export function captureMotion(motion: Motion) {
     moves: (motion.moves ?? []).map((m) => ({
       ...m,
       fromRect: rectOf(m.from),
+      fromTurn: turnAt(m.from),
       fromLook: lookOf(cardEl(m.from)),
       toPrevLook: lookOf(cardEl(m.to)),
     })),
@@ -171,10 +201,10 @@ export function playDeal(playerIds: string[], slotsPerPlayer: number) {
   let n = 0;
   for (let k = 0; k < slotsPerPlayer; k++) {
     for (const playerId of playerIds) {
-      fly({ from: { at: 'stock' }, to: { at: 'slot', playerId, slot: k }, fromRect: from, fromLook: look, markChanged: false }, n++ * 55);
+      fly({ from: { at: 'stock' }, to: { at: 'slot', playerId, slot: k }, fromRect: from, fromTurn: 0, fromLook: look, markChanged: false }, n++ * 55);
     }
   }
-  fly({ from: { at: 'stock' }, to: { at: 'discard' }, fromRect: from, fromLook: look, markChanged: false }, n * 55 + 120);
+  fly({ from: { at: 'stock' }, to: { at: 'discard' }, fromRect: from, fromTurn: 0, fromLook: look, markChanged: false }, n * 55 + 120);
 }
 
 // ---------------------------------------------------------------- flights
@@ -192,6 +222,7 @@ interface Flight {
   to: Spot;
   card?: Card;
   fromRect: DOMRect | null;
+  fromTurn: number;
   fromLook: HTMLElement | null;
   underlay?: HTMLElement | null;
   arc?: number;
@@ -220,7 +251,10 @@ function fly(f: Flight, delay: number) {
   const markChanged = f.markChanged ?? true;
   const target = cardEl(f.to);
   settleNow(target);
-  const toRect = target?.getBoundingClientRect() ?? rectOf(f.to);
+  const toRect = target ? boxOf(target) : rectOf(f.to);
+  const t0 = f.fromTurn;
+  const t1 = turnAt(f.to);
+  const tMid = (t0 + t1) / 2;
   if (!toRect || toRect.width === 0) return;
   if (animationsOff() || !f.fromRect) {
     if (target && markChanged) window.setTimeout(() => mark(target), delay);
@@ -234,7 +268,7 @@ function fly(f: Flight, delay: number) {
   const end = lookOf(target) ?? buildCard(undefined, size);
   const turns = isFace(start) !== isFace(end);
   const flyer = twoSided(start, end, size, toRect);
-  const under = f.underlay ? placed(f.underlay, size, toRect, 48) : null;
+  const under = f.underlay ? placed(f.underlay, size, toRect, 48, t1) : null;
   if (under) layer().appendChild(under);
   layer().appendChild(flyer);
 
@@ -244,7 +278,8 @@ function fly(f: Flight, delay: number) {
   const s = f.fromRect.width / toRect.width;
   const lift = Math.min(70, 16 + Math.hypot(dx, dy) * 0.18) * (f.arc ?? 1);
   const tilt = (dx > 0 ? -6 : 6) * (f.arc ?? 1);
-  const at = `translate(${dx}px, ${dy}px) scale(${s})`;
+  const at = `translate(${dx}px, ${dy}px) scale(${s}) rotate(${t0}deg)`;
+  const home = `rotate(${t1}deg)`;
   const rest = 'drop-shadow(0 3px 0 var(--saddle-deep))';
   const glow = 'drop-shadow(0 0 3px var(--cream)) drop-shadow(0 0 10px var(--sand)) drop-shadow(0 12px 10px var(--saddle-soft))';
   const duration = f.swap ? SWAP_MS : FLY_MS;
@@ -252,24 +287,24 @@ function fly(f: Flight, delay: number) {
     ? [
         // lift + glow in place (~750ms) so it's clear which cards are swapping...
         { transform: at, filter: rest },
-        { offset: 0.12, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18})`, filter: glow },
-        { offset: SWAP_LIFT, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18})`, filter: glow },
+        { offset: 0.12, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18}) rotate(${t0}deg)`, filter: glow },
+        { offset: SWAP_LIFT, transform: `translate(${dx}px, ${dy - 12}px) scale(${s * 1.18}) rotate(${t0}deg)`, filter: glow },
         // ...then cross on opposite arcs
         {
           offset: SWAP_LIFT + (1 - SWAP_LIFT) / 2,
-          transform: `translate(${dx * 0.5}px, ${dy * 0.5 - lift * 1.4}px) scale(${((s + 1) / 2) * 1.2}) rotate(${tilt}deg)`,
+          transform: `translate(${dx * 0.5}px, ${dy * 0.5 - lift * 1.4}px) scale(${((s + 1) / 2) * 1.2}) rotate(${tMid + tilt}deg)`,
           filter: glow,
         },
-        { transform: 'none', filter: rest },
+        { transform: home, filter: rest },
       ]
     : [
         { transform: at, filter: rest },
         {
           offset: 0.5,
-          transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(${((s + 1) / 2) * 1.14}) rotate(${tilt}deg)`,
+          transform: `translate(${dx * 0.45}px, ${dy * 0.45 - lift}px) scale(${((s + 1) / 2) * 1.14}) rotate(${tMid + tilt}deg)`,
           filter: 'drop-shadow(0 18px 14px var(--saddle-soft))',
         },
-        { transform: 'none', filter: rest, ...(target ? {} : { opacity: 0 }) },
+        { transform: home, filter: rest, ...(target ? {} : { opacity: 0 }) },
       ];
   const move = flyer.animate(keyframes, { duration, delay, easing: f.swap ? 'ease-in-out' : 'cubic-bezier(.3,.7,.25,1)', fill: 'backwards' });
   const inner = flyer.firstElementChild as HTMLElement;
@@ -308,7 +343,8 @@ function settle(before: Map<string, DOMRect>, busy: Set<string>) {
     const dx = old.left - now.left;
     const dy = old.top - now.top;
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
-    el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: SETTLE_MS, easing: 'ease-out' });
+    const [x, y] = unturn(dx, dy, turnOf(el));
+    el.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: 'none' }], { duration: SETTLE_MS, easing: 'ease-out' });
   });
 }
 
@@ -320,10 +356,11 @@ function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: n
     const target = cardEl(spot);
     if (!target) return;
     settleNow(target);
-    const r = target.getBoundingClientRect();
+    const r = boxOf(target);
+    const turn = turnOf(target);
     const size = sizeOf(target) ?? 'md';
     if (animationsOff()) {
-      const face = placed(buildCard(card, size), size, r, 55);
+      const face = placed(buildCard(card, size), size, r, 55, turn);
       layer().appendChild(face);
       face.animate([{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1, offset: 0.9 }, { opacity: 0 }], { duration: REVEAL_HOLD_MS });
       window.setTimeout(() => face.remove(), REVEAL_HOLD_MS);
@@ -336,7 +373,7 @@ function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: n
     flyer.classList.add('flyer--peek');
     layer().appendChild(flyer);
     target.style.visibility = 'hidden';
-    const at = `translate(${r.left - view.left}px, ${r.top - view.top}px) scale(${r.width / view.width})`;
+    const at = `translate(${r.left - view.left}px, ${r.top - view.top}px) scale(${r.width / view.width}) rotate(${turn}deg)`;
     const move = flyer.animate(
       [
         { transform: at },
@@ -385,7 +422,8 @@ function peekAsOnlooker(spot: Spot, by: string, delay: number) {
     const seat = document.querySelector<HTMLElement>(`[data-seat="${by}"]`)?.getBoundingClientRect();
     const tx = seat ? (seat.left + seat.width / 2 - (r.left + r.width / 2)) * 0.35 : 0;
     const ty = seat ? (seat.top + seat.height / 2 - (r.top + r.height / 2)) * 0.35 : -r.height * 0.4;
-    const lifted = `translate(${tx}px, ${ty - 8}px) rotate(${tx > 0 ? 8 : -8}deg) scale(1.15)`;
+    const [x, y] = unturn(tx, ty - 8, turnOf(el));
+    const lifted = `translate(${x}px, ${y}px) rotate(${tx > 0 ? 8 : -8}deg) scale(1.15)`;
     const shadow = 'drop-shadow(0 10px 8px var(--saddle-soft))';
     el.animate(
       [
@@ -430,16 +468,17 @@ function flash(spot: Spot, card?: Card) {
   el.setAttribute('data-flash', '');
   window.setTimeout(() => el.removeAttribute('data-flash'), 1000);
   if (!card) return;
-  const r = el.getBoundingClientRect();
+  const r = boxOf(el);
+  const turn = `rotate(${turnOf(el)}deg)`;
   const size = sizeOf(el) ?? 'md';
   const face = placed(buildCard(card, size), size, r, 49);
   layer().appendChild(face);
   const anim = face.animate(
     [
-      { transform: 'rotateY(90deg)', offset: 0 },
-      { transform: 'rotateY(0deg)', offset: 0.12 },
-      { transform: 'rotateY(0deg)', offset: 0.88 },
-      { transform: 'rotateY(90deg)', offset: 1 },
+      { transform: `${turn} rotateY(90deg)`, offset: 0 },
+      { transform: `${turn} rotateY(0deg)`, offset: 0.12 },
+      { transform: `${turn} rotateY(0deg)`, offset: 0.88 },
+      { transform: `${turn} rotateY(90deg)`, offset: 1 },
     ],
     { duration: 1800, easing: 'ease-in-out' },
   );
@@ -474,9 +513,10 @@ function fit(el: HTMLElement, size: string, width: number) {
 }
 
 /** A card look fixed at a screen rect (underlay / reveal overlay). */
-function placed(look: HTMLElement, size: string, r: DOMRect, z: number) {
+function placed(look: HTMLElement, size: string, r: DOMRect, z: number, turn = 0) {
   const el = fit(look.cloneNode(true) as HTMLElement, size, r.width);
   Object.assign(el.style, { position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, zIndex: String(z), pointerEvents: 'none' });
+  if (turn) el.style.transform = `rotate(${turn}deg)`;
   return el;
 }
 

@@ -1202,3 +1202,10 @@ button.pcard:disabled { opacity: 1; }
 .results__total { font-size: 16px; color: var(--leather); }
 .results__head, .results__row { grid-template-columns: minmax(0, 1fr) 4.2em 4.2em; column-gap: 10px; }
 .results__head { letter-spacing: 0.04em; }
+
+/* ======== side seats: cards turned 90° to face their owner ======== */
+/* each slot is a landscape cell; the portrait card inside is rotated to fill it */
+.hand--turn > div { width: calc(var(--w) * 7 / 5); height: var(--w); display: grid; place-items: center; }
+.hand--turn .pcard-wrap { transform: rotate(var(--turn)); }
+.hand--turn-left { --turn: 90deg; }
+.hand--turn-right { --turn: -90deg; }
