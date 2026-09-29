@@ -29,7 +29,15 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
   const link = `${usePublicUrl()}/?room=${room.code}`;
   const enough = room.players.length >= MIN_PLAYERS;
   const emptyRows = Math.max(0, MIN_ROWS - room.players.length);
-  const [levelsOpen, setLevelsOpen] = useState(false);
+  // The level menu is placed against the screen (position: fixed), so the posse panel can keep
+  // clipping its contents to its rounded border.
+  const [menuAt, setMenuAt] = useState<{ top: number; right: number } | null>(null);
+  const levelsOpen = menuAt !== null;
+  const addBotRef = useRef<HTMLButtonElement>(null);
+  const setLevelsOpen = (open: boolean) => {
+    const r = open ? addBotRef.current?.getBoundingClientRect() : null;
+    setMenuAt(r ? { top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) } : null);
+  };
   // The room state is re-sent often; remember which game's standings were dismissed, not the object.
   const finalKey = room.final ? room.final.standings.map((s) => `${s.id}:${s.total}`).join(',') + `/${room.final.rounds}` : null;
   const [dismissedFinal, setDismissedFinal] = useState<string | null>(null);
@@ -42,11 +50,17 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
       if (!menuRef.current?.contains(e.target as Node)) setLevelsOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setLevelsOpen(false);
+    // A fixed menu would drift from its button: close it if the page moves.
+    const onMove = () => setLevelsOpen(false);
     document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onMove, true);
     return () => {
       document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onMove, true);
     };
   }, [levelsOpen]);
 
@@ -78,15 +92,16 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
               <div className="bot-menu" ref={menuRef}>
                 <button
                   className="btn btn--light btn--sm"
-                  onClick={() => setLevelsOpen((o) => !o)}
+                  ref={addBotRef}
+                  onClick={() => setLevelsOpen(!levelsOpen)}
                   disabled={room.players.length >= MAX_PLAYERS}
                   aria-haspopup="menu"
                   aria-expanded={levelsOpen}
                 >
                   + Add bot
                 </button>
-                {levelsOpen && (
-                  <div className="panel bot-menu__list" role="menu">
+                {menuAt && (
+                  <div className="panel bot-menu__list" role="menu" style={{ top: menuAt.top, right: menuAt.right }}>
                     {BOT_LEVELS.map((level) => (
                       <button
                         key={level}
