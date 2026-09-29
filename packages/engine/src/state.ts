@@ -51,7 +51,8 @@ export type Phase =
    * `onlyFor` (R30): a snap streak. After the first correct snap, the snapper alone gets another
    * window to snap more cards of the same rank from their own hand.
    */
-  | { kind: 'snap'; windowId: number; onlyFor?: string }
+  /** `opening` (R3): the window on the first face-up discard, once everyone has memorised. */
+  | { kind: 'snap'; windowId: number; onlyFor?: string; opening?: boolean }
   | { kind: 'give'; snapperId: string; targetId: string; slot: number }
   /**
    * R31: a short pause before the snap window while a looked-at card is shown and put back, or

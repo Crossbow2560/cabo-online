@@ -34,6 +34,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
 
           <h3>The deal</h3>
           <p>Everyone gets 4 cards face down in a square. At the start you may peek at your <b>two nearest cards</b> (the bottom row) once - memorise them! After that you can’t look at your cards unless a special card lets you.</p>
+          <p>Once everyone has memorised, one card is turned face up to start the discard pile, and there’s a snap window before the first turn: anyone can snap cards that match it.</p>
 
           <h3>Your turn - do one of</h3>
           <ul>

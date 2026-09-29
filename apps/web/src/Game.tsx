@@ -471,6 +471,13 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
       const rank = view.discardTop ? view.discardTop.rank : '';
       if (view.snapOnlyFor === me) return <>You snapped first! Snap another {rank} of yours, or press Done.</>;
       if (view.snapOnlyFor) return <>{name(view.snapOnlyFor)} snapped first and may snap more {rank}s</>;
+      if (view.snapOpening) {
+        // R3: before the first turn, anyone may snap the card turned up at the deal.
+        const i = view.players.findIndex((p) => p.id === view.currentPlayerId);
+        const first = view.players[(i + 1) % view.players.length];
+        const who = first?.id === me ? 'you start' : `${first?.name ?? 'the first player'} starts`;
+        return <>First card up: {view.discardTop ? cardLabel(view.discardTop) : ''}. Snap a match before {who}! Wrong guesses cost a card.</>;
+      }
       return <>Discarded {view.discardTop ? cardLabel(view.discardTop) : ''} — snap a match! Wrong guesses cost a card.</>;
     }
     case 'settle': // R31: snapping opens once the card is back in place

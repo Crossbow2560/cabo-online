@@ -100,7 +100,11 @@ async function startAndReady(bots: Bot[]) {
   expect((await bots[0].emit('room:start')).ok).toBe(true);
   await Promise.all(bots.map((b) => b.until((v) => v.phase === 'peek')));
   for (const b of bots) expect((await b.emit('game:action', { type: 'READY' })).ok).toBe(true);
-  return bots[0].until((v) => v.phase === 'choose');
+  // R3: the first-discard snap window comes first; nobody snaps, so it closes at once.
+  const opening = await bots[0].until((v) => v.snapOpening || v.phase === 'choose');
+  if (opening.snapOpening) for (const b of bots) await b.emit('game:snapPass', { windowId: opening.snapWindowId });
+  await Promise.all(bots.map((b) => b.until((v) => v.phase === 'choose')));
+  return bots[0].view!;
 }
 
 describe('server', () => {
@@ -558,7 +562,10 @@ describe('pause and end game', () => {
     const room = () => server.rooms.rooms.get(code)!;
     const before = room().game!.state.deadline!;
 
-    const paused = nextRoom(cur);
+    const paused = new Promise<import('@cabo/engine').RoomState>((res) => {
+      const on = (r: import('@cabo/engine').RoomState) => r?.paused && (cur.socket.off('room:state', on), res(r));
+      cur.socket.on('room:state', on);
+    });
     expect((await other.emit('room:pause')).ok).toBe(true); // not their turn: anyone may pause
     const pausedBy = (await paused).paused!;
     expect(pausedBy.byId).toBe(other.id);

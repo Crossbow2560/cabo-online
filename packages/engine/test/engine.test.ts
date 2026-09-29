@@ -31,6 +31,9 @@ function game(n = 3, dealerIndex = 0): GameState {
 function playing(opts: { hands?: string[][]; stock?: string[]; discard?: string[]; n?: number } = {}): GameState {
   let s = game(opts.n ?? 3);
   for (const p of s.players) s = ok(s, { type: 'READY', playerId: p.id });
+  // Skip the opening snap window (R3, tested on its own) so every test starts at p1's turn at T0.
+  expect(s.phase).toMatchObject({ kind: 'snap', opening: true });
+  s = { ...s, phase: { kind: 'choose' }, currentIndex: 1 % s.players.length, deadline: T0 + s.timings.turnMs };
   if (opts.hands) opts.hands.forEach((h, i) => (s.players[i].slots = h.map((x) => (x === '-' ? null : c(x)))));
   if (opts.stock) s.stock = opts.stock.map(c); // last element = top
   if (opts.discard) s.discard = opts.discard.map(c);
@@ -87,6 +90,7 @@ describe('deal & peek', () => {
     expect(s.stock.length + s.discard.length).toBe(54 - 12);
     let t = s;
     for (const p of t.players) t = ok(t, { type: 'READY', playerId: p.id });
+    t = ok(t, { type: 'TICK' }, T0 + t.timings.snapMs); // the first-discard snap window (R3)
     expect(t.players[t.currentIndex].id).toBe('p2');
   });
 
@@ -106,8 +110,9 @@ describe('deal & peek', () => {
     const hidden = (v: ReturnType<typeof redactFor>) => v.players.every((p) => p.slots.every((x) => !x || x.card === null)) && v.drawnCard === null;
     expect(hidden(redactFor(s, 'spectator'))).toBe(true); // peek phase: nobody's cards
     for (const p of s.players) s = ok(s, { type: 'READY', playerId: p.id });
+    s = ok(s, { type: 'TICK' }, T0 + s.timings.snapMs); // past the first-discard window (R3)
     const cur = s.players[s.currentIndex].id;
-    s = ok(s, { type: 'DRAW_STOCK', playerId: cur });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: cur }, T0 + s.timings.snapMs);
     expect(redactFor(s, cur).drawnCard).not.toBeNull();
     expect(hidden(redactFor(s, 'spectator'))).toBe(true);
   });
@@ -124,13 +129,40 @@ describe('deal & peek', () => {
     const s = game();
     expect(err(s, { type: 'TICK' }, T0 + 1)).toBe('not_due');
     const t = ok(s, { type: 'TICK' }, T0 + s.timings.peekMs);
-    expect(t.phase.kind).toBe('choose');
+    expect(t.phase).toMatchObject({ kind: 'snap', opening: true }); // R3, then the first turn
   });
 
-  it('R3: initial discard opens no snap window', () => {
-    const s = playing();
+  it('R3: once everyone has memorised, the first discard opens a snap window, then the first turn', () => {
+    let s = game(); // dealer p0, so p1 plays first
+    for (const p of s.players) s = ok(s, { type: 'READY', playerId: p.id });
+    expect(s.phase).toMatchObject({ kind: 'snap', opening: true });
+    expect(redactFor(s, 'p2').snapOpening).toBe(true);
+    // No turn actions yet: the window belongs to nobody's turn.
+    expect(err(s, { type: 'DRAW_STOCK', playerId: 'p0' })).toBe('wrong_phase');
+    expect(err(s, { type: 'DRAW_STOCK', playerId: 'p1' })).toBe('not_your_turn');
+    const t = ok(s, { type: 'TICK' }, T0 + s.timings.snapMs);
+    expect(t.phase.kind).toBe('choose');
+    expect(t.players[t.currentIndex].id).toBe('p1');
+  });
+
+  it('R3: anyone can snap the first discard (a streak and a give work as usual), then the first turn', () => {
+    let s = game();
+    for (const p of s.players) s = ok(s, { type: 'READY', playerId: p.id });
+    const top = s.discard.at(-1)!;
+    s.players[2].slots[1] = { ...top }; // p2 holds a match
+    const w = (s.phase as { windowId: number }).windowId;
+    s = ok(s, { type: 'SNAP', playerId: 'p2', windowId: w, ownerId: 'p2', slot: 1 });
+    expect(s.players[2].slots[1]).toBeNull();
+    expect(s.phase).toMatchObject({ kind: 'snap', onlyFor: 'p2' }); // R30 streak
+    s = ok(s, { type: 'SKIP', playerId: 'p2' });
     expect(s.phase.kind).toBe('choose');
-    expect(s.windowCounter).toBe(0);
+    expect(s.players[s.currentIndex].id).toBe('p1'); // still the first player's turn
+  });
+
+  it('R3: the peek timing out also opens the first-discard window', () => {
+    const s = game();
+    const t = ok(s, { type: 'TICK' }, T0 + s.timings.peekMs);
+    expect(t.phase).toMatchObject({ kind: 'snap', opening: true });
   });
 
   it('R4: 2..8 players', () => {
@@ -686,7 +718,7 @@ describe('kicking offline players (REMOVE_PLAYER)', () => {
     s = ok(s, { type: 'READY', playerId: 'p0' });
     s = ok(s, { type: 'READY', playerId: 'p1' });
     s = ok(s, { type: 'REMOVE_PLAYER', playerId: 'p2' });
-    expect(s.phase.kind).toBe('choose');
+    expect(s.phase).toMatchObject({ kind: 'snap', opening: true }); // R3, then the first turn
   });
 });
 

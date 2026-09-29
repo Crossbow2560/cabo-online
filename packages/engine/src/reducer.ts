@@ -336,10 +336,14 @@ class Ctx {
 
   private startTurns(): void {
     const s = this.s;
-    s.currentIndex = (s.dealerIndex + 1) % s.players.length;
-    s.phase = { kind: 'choose' };
-    s.deadline = this.now + s.timings.turnMs;
-    this.log(`Everyone is ready. ${this.current().name} goes first`);
+    // R3: before the first turn, anyone may snap the discard that was turned up at the deal.
+    // The window "belongs" to the dealer, so when it closes the turn passes to the player after them.
+    s.currentIndex = s.dealerIndex;
+    const first = s.players[(s.dealerIndex + 1) % s.players.length];
+    this.log(`Everyone is ready. Snap the first discard if you can, then ${first.name} goes first`);
+    s.windowCounter++;
+    s.phase = { kind: 'snap', windowId: s.windowCounter, opening: true };
+    s.deadline = this.now + s.timings.snapMs;
   }
 
   /** R31: wait for a peeked card to be put back (or swapped cards to land) before the snap window. */

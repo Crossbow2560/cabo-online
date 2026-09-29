@@ -14,6 +14,7 @@ The same browser profile is always the same player. To test alone, use private w
 ## Playing a round
 
 - **Peek (20s):** your two nearest cards (bottom row, #3 and #4) are shown face-up. Memorise them, then press **I've memorised them**. Afterwards you can't look at your cards unless an ability lets you.
+- **Opening snap:** once everyone has memorised, there's a snap window on the card turned up at the deal, before the first turn. Anyone can snap cards that match it.
 - **Your turn:**
   - **Tap the stock** to draw. The card appears under "You drew". Then **tap one of your cards** to keep the new card (the old one goes to the discard), or press **Discard it**.
   - **Tap the discard** to take it, then tap one of your cards to swap with it. Tap the discard again to cancel.

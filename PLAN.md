@@ -75,7 +75,7 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - The server shows them during the peek phase only.
   - After a player clicks Ready, or after 15s, those cards are never sent to that client again.
   - The client must not cache them, and the UI only shows what the server sends.
-- **R3:** The discard card turned up at the start of the game is **not** a "discard by a player". It triggers no ability and opens no snap window.
+- **R3:** The discard card turned up at the start of the game is **not** a "discard by a player", so it triggers no ability. Once everyone has memorised (or the peek phase times out), it opens an **opening snap window** before the first turn: anyone may snap cards matching it, with the usual rules (reaction-time ordering R14, penalties R15, gives R17, streaks R30). When the window closes, the player left of the dealer starts.
 - **R4:** The room holds 2 to 8 players. Dealing 8 players uses 32 cards plus 1, which leaves 21 in stock.
 
 **Turn actions**
