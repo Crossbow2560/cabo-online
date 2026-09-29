@@ -15,13 +15,19 @@ afterEach(async () => {
   for (const s of servers.splice(0)) await s.close();
 });
 
-async function start(store: Store = new MemoryStore(), kickAfterMs?: number, extra: { timings?: object; peekHoldMs?: number; botPace?: number } = {}) {
+async function start(
+  store: Store = new MemoryStore(),
+  kickAfterMs?: number,
+  extra: { timings?: object; peekHoldMs?: number; botPace?: number; snapGraceMs?: number } = {},
+) {
   const server = await createCaboServer({
     store,
     timings: { ...TIMINGS, ...extra.timings },
     kickAfterMs,
     peekHoldMs: extra.peekHoldMs,
     botPace: extra.botPace ?? 0.005,
+    // Test clients mostly don't send "no snap" passes; don't make every window wait long for them.
+    snapGraceMs: extra.snapGraceMs ?? 30,
   });
   const port = await server.listen(0);
   servers.push(server);
@@ -188,30 +194,86 @@ describe('server', () => {
     }
   });
 
-  it('simultaneous correct snaps: exactly one wins, the other is too slow without penalty', async () => {
-    const { url, server } = await start();
+  /** Opens a snap window where the two players other than the discarder hold a matching slot 0. */
+  async function rigSnap(snapMs: number, snapGraceMs = 30) {
+    const { url, server } = await start(new MemoryStore(), undefined, { timings: { snapMs }, snapGraceMs });
     const { bots, code } = await lobby(url);
     const v = await startAndReady(bots);
     const cur = bots.find((b) => b.id === v.currentPlayerId)!;
     await cur.emit('game:action', { type: 'DRAW_STOCK' });
     await cur.emit('game:action', { type: 'KEEP', slot: 0 });
     const w = await cur.until((x) => x.phase === 'snap');
-
-    // Rig two opponents' slot 0 to match the discard top.
-    const state = server.rooms.rooms.get(code)!.game!.state;
+    const state = () => server.rooms.rooms.get(code)!.game!.state;
     const [a, b] = bots.filter((x) => x !== cur);
-    const top = state.discard.at(-1)!;
-    for (const who of [a, b]) state.players.find((p) => p.id === who.id)!.slots[0] = { ...top };
+    const top = state().discard.at(-1)!;
+    for (const who of [a, b]) state().players.find((p) => p.id === who.id)!.slots[0] = { ...top };
+    return { server, bots, cur, a, b, windowId: w.snapWindowId!, state };
+  }
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-    const [ra, rb] = await Promise.all([
-      a.emit('game:snap', { windowId: w.snapWindowId, ownerId: a.id, slot: 0 }),
-      b.emit('game:snap', { windowId: w.snapWindowId, ownerId: b.id, slot: 0 }),
-    ]);
-    expect([ra.ok, rb.ok].filter(Boolean)).toHaveLength(1);
-    const loser = ra.ok ? rb : ra;
-    expect(loser.error).toMatch(/too slow/i);
-    const finalState = server.rooms.rooms.get(code)!.game!.state;
-    expect(finalState.players.map((p) => p.slots.length)).toEqual([4, 4, 4]);
+  it('snaps are ordered by reaction time, not arrival: a laggy faster snap still wins', async () => {
+    const { cur, a, b, windowId, state } = await rigSnap(2_000);
+    await sleep(300);
+    // A's snap arrives first, but A took 250ms to react; B's arrives later (a slow connection)
+    // with a 150ms reaction.
+    expect((await a.emit('game:snap', { windowId, ownerId: a.id, slot: 0, reactionMs: 250 })).ok).toBe(true);
+    await sleep(200);
+    expect((await b.emit('game:snap', { windowId, ownerId: b.id, slot: 0, reactionMs: 150 })).ok).toBe(true);
+    // Nothing is decided until the window is over and everyone has answered.
+    expect(state().players.find((p) => p.id === b.id)!.slots[0]).not.toBeNull();
+    await cur.emit('game:snapPass', { windowId });
+    await cur.until((v) => v.phase !== 'snap', 3_000);
+    expect(state().players.find((p) => p.id === b.id)!.slots[0]).toBeNull(); // B won
+    expect(state().players.find((p) => p.id === a.id)!.slots[0]).not.toBeNull();
+    expect(state().players.map((p) => p.slots.length)).toEqual([4, 4, 4]); // no penalty for A
+    await sleep(50);
+    expect(a.logs).toContain('Too slow — someone snapped first');
+  });
+
+  it("reported reaction times are bounded: never later than the snap's arrival", async () => {
+    const { cur, a, b, windowId, state } = await rigSnap(2_000);
+    await sleep(150);
+    // A claims a huge reaction time, but its snap reached the server ~150ms in: that's what counts.
+    await a.emit('game:snap', { windowId, ownerId: a.id, slot: 0, reactionMs: 1_900 });
+    await sleep(300);
+    await b.emit('game:snap', { windowId, ownerId: b.id, slot: 0, reactionMs: 400 });
+    await cur.emit('game:snapPass', { windowId });
+    await cur.until((v) => v.phase !== 'snap', 3_000);
+    expect(state().players.find((p) => p.id === a.id)!.slots[0]).toBeNull(); // A won
+  });
+
+  it('one snap per player per window', async () => {
+    const { a, windowId } = await rigSnap(2_000);
+    await a.emit('game:snap', { windowId, ownerId: a.id, slot: 0, reactionMs: 200 });
+    expect(await a.emit('game:snap', { windowId, ownerId: a.id, slot: 1, reactionMs: 300 })).toMatchObject({
+      ok: false,
+      error: 'You already snapped this time',
+    });
+  });
+
+  it('the window closes as soon as everyone has answered; a silent player is waited for only up to the grace', async () => {
+    // Everyone passes: resolves right after the window, long before the 5s grace.
+    const quick = await rigSnap(300, 5_000);
+    const t0 = Date.now();
+    for (const p of quick.bots) await p.emit('game:snapPass', { windowId: quick.windowId });
+    await quick.cur.until((v) => v.phase !== 'snap', 2_000);
+    expect(Date.now() - t0).toBeLessThan(1_000);
+
+    // One player never answers: the server waits past the window, then gives up after the grace.
+    const slow = await rigSnap(300, 700);
+    const t1 = Date.now();
+    for (const p of [slow.cur, slow.a]) await p.emit('game:snapPass', { windowId: slow.windowId });
+    await slow.cur.until((v) => v.phase !== 'snap', 3_000);
+    expect(Date.now() - t1).toBeGreaterThanOrEqual(800);
+  });
+
+  it("a player who disconnects isn't waited for", async () => {
+    const { cur, a, b, windowId } = await rigSnap(300, 5_000);
+    const t0 = Date.now();
+    for (const p of [cur, a]) await p.emit('game:snapPass', { windowId });
+    b.socket.disconnect();
+    await cur.until((v) => v.phase !== 'snap', 2_000);
+    expect(Date.now() - t0).toBeLessThan(1_500);
   });
 
   it('rejects joining a round in progress and malformed actions', async () => {

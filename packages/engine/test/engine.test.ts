@@ -286,6 +286,14 @@ describe('snapping', () => {
     expect(s.players[2].slots.length).toBe(before);
   });
 
+  it('a snap replayed after the deadline counts if it happened (`at`) inside the window', () => {
+    const s = withWindow();
+    const late = T0 + s.timings.snapMs + 400;
+    const t = ok(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 3, at: T0 + 500 }, late);
+    expect(t.players[0].slots[3]).toBeNull();
+    expect(err(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 3, at: T0 + s.timings.snapMs + 1 }, late)).toBe('too_slow');
+  });
+
   it('R14: snap after the window deadline is too slow', () => {
     const s = withWindow();
     expect(err(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 3 }, T0 + s.timings.snapMs + 1)).toBe('too_slow');

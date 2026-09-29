@@ -45,6 +45,8 @@ export interface ServerOptions {
   peekHoldMs?: number;
   /** Multiplies bot thinking delays (default 1; tests use a small value). */
   botPace?: number;
+  /** How long past a snap window to wait for slow clients' snaps (default 1.5s). */
+  snapGraceMs?: number;
   /** R28: max snaps per socket per second. */
   snapRateLimit?: number;
   webDist?: string;
@@ -77,6 +79,7 @@ export async function createCaboServer(opts: ServerOptions) {
     opts.fixedSeed ?? null,
     opts.peekHoldMs,
     opts.botPace,
+    opts.snapGraceMs,
   );
   const restored = await rooms.restore();
   if (restored) console.log(`restored ${restored} room(s)`);
@@ -213,7 +216,7 @@ export async function createCaboServer(opts: ServerOptions) {
 
     socket.on('game:action', handle((raw: ClientAction) => rooms.act(sid, parseAction(raw, sid))) as never);
 
-    socket.on('game:snap', handle((req: { windowId: number; ownerId: string; slot: number }) => {
+    socket.on('game:snap', handle((req: { windowId: number; ownerId: string; slot: number; reactionMs?: number }) => {
       const now = Date.now();
       const limit = opts.snapRateLimit ?? 5;
       socket.data.snaps = socket.data.snaps.filter((t) => now - t < 1000);
@@ -222,7 +225,13 @@ export async function createCaboServer(opts: ServerOptions) {
       if (!req || !Number.isInteger(req.windowId) || !Number.isInteger(req.slot) || typeof req.ownerId !== 'string') {
         throw new GameError('Bad snap');
       }
-      rooms.act(sid, { type: 'SNAP', playerId: sid, windowId: req.windowId, ownerId: req.ownerId, slot: req.slot });
+      if (req.reactionMs !== undefined && typeof req.reactionMs !== 'number') throw new GameError('Bad snap');
+      rooms.snap(sid, req);
+    }) as never);
+
+    socket.on('game:snapPass', handle((req: { windowId: number }) => {
+      if (!req || !Number.isInteger(req.windowId)) throw new GameError('Bad pass');
+      rooms.passSnap(sid, req.windowId);
     }) as never);
 
     socket.on('disconnect', async () => {

@@ -98,8 +98,10 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - Every player-made discard opens a window, including discards from `KEEP` and `TAKE_DISCARD`. A successful snap does not open a new window.
 - **R13:** Matching is by **rank**. 7 matches 7, any K matches any K, and a Joker matches a Joker.
 - **R14:** The window closes on the **first correct** snap, because "only the first card laid may remain".
-  - Snaps from the server's serial queue that arrive later are rejected as "too slow". They carry no penalty and reveal nothing.
-  - Snaps received after the window has timed out are treated the same way.
+  - "First" means **fastest reaction**, not first to reach the server. Each client times the window from when it appears on its own screen and reports how long the player took to tap. The server gathers the window's snaps, then replays them in reaction-time order once everyone has reported (a snap, or "no snap" when their window ends) or a 1.5s grace period has passed. A slow connection therefore doesn't lose the race.
+  - A reported reaction time is only believed if it's at least 120ms, and it can't be later than the moment the snap reached the server.
+  - Each player may snap **once per window**.
+  - Correct snaps after the winner's are "too slow". They carry no penalty and reveal nothing. So are snaps timed after the window closed.
 - **R15:** A **wrong** snap, meaning a rank mismatch received before any correct snap, works like this:
   - The card is shown to everyone, as it would be when laid on the table.
   - It goes back to its original slot.

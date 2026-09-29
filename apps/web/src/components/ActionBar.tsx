@@ -3,13 +3,15 @@ import type { ClientAction, PlayerView } from '@cabo/engine';
 export type Pick = null | 'take_discard' | { blindMine: number };
 
 /** Context buttons for the current phase (logic carried over from the interim Controls). */
-export function ActionBar({ view, pick, setPick, act, snapLeft }: {
+export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
   view: PlayerView;
   pick: Pick;
   setPick: (p: Pick) => void;
   act: (a: ClientAction) => void;
   /** 0..1 of the snap window remaining. */
   snapLeft: number;
+  /** This player snapped ('sent') or their window ran out ('over'); the server decides once everyone's in. */
+  snapStatus: 'sent' | 'over' | null;
 }) {
   const me = view.you;
   const myTurn = view.currentPlayerId === me;
@@ -21,7 +23,9 @@ export function ActionBar({ view, pick, setPick, act, snapLeft }: {
       <div className="actions">
         <div className="snap-banner" role="status">
           <span className="snap-banner__word">SNAP!</span>
-          <span className="snap-banner__hint">Tap a card that matches the discard</span>
+          <span className="snap-banner__hint">
+            {snapStatus === 'sent' ? 'Snap sent — checking who was first…' : snapStatus === 'over' ? 'Waiting for everyone’s snaps…' : 'Tap a card that matches the discard'}
+          </span>
           <span className="snap-banner__bar" style={{ transform: `scaleX(${snapLeft})` }} />
         </div>
       </div>

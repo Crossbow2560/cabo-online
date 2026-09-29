@@ -27,7 +27,9 @@ The same browser profile is always the same player. To test alone, use private w
 
   **Skip ability** is always available. The peeked card lifts toward you for a few seconds; other players see which card you looked at, but not its value.
 - **Snapping:** after any discard there's a 3.5s **SNAP!** window. Tap any card, yours or an opponent's, that you think matches the discard's rank.
-  - The first correct snap wins; later ones are "too slow", with no penalty.
+  - You get **one** snap per window. Your 3.5s start when the window appears on *your* screen.
+  - The fastest correct snap wins: snaps are compared by how quickly each player reacted, so a laggy connection doesn't cost you the race. The result shows once everyone's window has ended.
+  - Slower correct snaps are "too slow", with no penalty.
   - A wrong guess shows the card to everyone, puts it back, and gives you a face-down penalty card.
   - If you snapped an opponent's card, you may tap one of yours to give them, or press **Don't give a card**.
 - **Scoring:**

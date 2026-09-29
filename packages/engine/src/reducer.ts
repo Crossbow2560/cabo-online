@@ -104,7 +104,7 @@ class Ctx {
         return;
       }
       case 'SNAP':
-        return this.snap(me, a.windowId, a.ownerId, a.slot);
+        return this.snap(me, a.windowId, a.ownerId, a.slot, a.at ?? this.now);
     }
 
     // Everything below is the acting player's own move.
@@ -243,10 +243,10 @@ class Ctx {
 
   // ---- snapping (R12–R19) ----
 
-  private snap(snapper: PlayerState, windowId: number, ownerId: string, slot: number): void {
+  private snap(snapper: PlayerState, windowId: number, ownerId: string, slot: number, at: number): void {
     const s = this.s;
     const ph = s.phase;
-    if (ph.kind !== 'snap' || ph.windowId !== windowId || this.now > s.deadline!) {
+    if (ph.kind !== 'snap' || ph.windowId !== windowId || at > s.deadline!) {
       reject('too_slow', 'Too slow — the snap window is closed'); // R14
     }
     const owner = this.player(ownerId);

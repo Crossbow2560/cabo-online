@@ -45,7 +45,11 @@ These are unit tests against the pure reducer. Each builds a game with a fixed s
 These start a real server on a random port (`createCaboServer` with short timings) and drive it with `socket.io-client` bots.
 - **Sessions and auth:** invalid tokens are rejected, and `/api/config` returns the right value. A store outage returns 503 / `unavailable` (never 401).
 - **Full game:** 3 bots play a whole round ending in Cabo, and the scores match the revealed cards.
-- **Races:** two correct snaps sent at the same time give exactly one winner.
+- **Snap races:**
+  - snaps are ordered by reaction time, so a later-arriving but faster snap wins, and the loser gets a private "too slow" with no penalty;
+  - reported reaction times can't exceed the time elapsed on arrival;
+  - one snap per player per window;
+  - the window resolves as soon as everyone has answered, waits for a silent player only up to the grace, and doesn't wait for a disconnected one.
 - **Rejections:** joining mid-round, and malformed actions.
 - **Presence:**
   - auto-kick in the lobby and mid-round (host handover, last one standing, play continuing with 3 players),

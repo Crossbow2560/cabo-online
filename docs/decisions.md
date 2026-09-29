@@ -18,8 +18,19 @@ Cabo is a hidden-information game with races, so a client-side model would leak 
 
 **Considered:** a full event log with replay (a `game_events` table). It was dropped in favour of snapshots, which are enough for crash recovery.
 
-## Arrival order instead of locks for snap races
-Node processes one socket handler at a time, and `applyAction` is synchronous. The first valid snap therefore wins, and later ones are rejected as `too_slow` with no penalty. Snaps are checked against a `windowId` rather than the state version, because several players snap the same window concurrently. Other turn actions carry `expectedVersion`, to reject double clicks and stale screens.
+## Snap races decided by reaction time, not arrival
+First-to-arrive favoured good connections: a player on mobile data could tap first and still lose. So each snap window is resolved as a batch (`RoomManager.snap` / `resolveSnaps`):
+- Each client times its window from when it **sees** it and reports its reaction time (`reactionMs`), or a "no snap" pass when its window ends.
+- The server waits until the window is over and every online human has answered, or for at most `snapGraceMs` (1.5s) after it. A disconnected player isn't waited for.
+- It then replays the snaps through the engine in reaction-time order, each with a server-set `at` time for the window check. The engine's rules are unchanged: first correct snap wins, earlier wrong snaps are penalised, later correct ones are too slow.
+
+**Why reaction times, not timestamps:** device clocks can differ by seconds, and a timestamp includes the time the window took to reach that player. A reaction time measured on the player's own screen cancels both.
+
+**Trust:** a client could under-report. Claims are clamped to at least 120ms and to no more than the time actually elapsed when the snap arrived, which is enough for a casual game among friends. Bots are timed by the server.
+
+**Trade-off:** a snap's result appears when the window closes (≈3.5s plus the slowest player's lag), not the instant someone taps.
+
+Snaps are matched to a `windowId` rather than the state version, because several players snap the same window concurrently. Other turn actions carry `expectedVersion`, to reject double clicks and stale screens.
 
 ## In-memory live state, Postgres snapshots
 Every action updates memory, and then a snapshot is upserted asynchronously, chained per room and version-guarded (`where games.version <= excluded.version`).

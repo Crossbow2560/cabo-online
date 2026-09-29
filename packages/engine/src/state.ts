@@ -81,7 +81,11 @@ export type Action =
   | ({ type: 'SWAP'; mySlot: number } & Base)
   | ({ type: 'SKIP' } & Base)
   | ({ type: 'GIVE_CARD'; mySlot: number } & Base)
-  | { type: 'SNAP'; playerId: string; windowId: number; ownerId: string; slot: number }
+  /**
+   * `at` (server-set only): when the snap effectively happened. Snaps are gathered for the whole
+   * window and replayed in reaction-time order, so this can be earlier than the time applied.
+   */
+  | { type: 'SNAP'; playerId: string; windowId: number; ownerId: string; slot: number; at?: number }
   | { type: 'TICK' }
   /** System action (server only): a player left or was kicked for being offline too long. */
   | { type: 'REMOVE_PLAYER'; playerId: string; reason?: string };

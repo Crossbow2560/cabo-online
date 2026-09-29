@@ -85,15 +85,42 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const act = (action: ClientAction) =>
     call((ack) => socket.emit('game:action', { ...action, expectedVersion: view.version } as ClientAction, ack)).then(() => setPick(null));
 
-  const snap = (ownerId: string, slot: number) =>
-    call((ack) => socket.emit('game:snap', { windowId: view.snapWindowId!, ownerId, slot }, ack));
+  // Snap windows are timed from when *this* screen shows them, and the server orders snaps by the
+  // reported reaction time, so a slow connection doesn't lose the race (see RoomManager.snap).
+  const snapWin = useRef<{ id: number | null; seenAt: number; seenAtWall: number }>({ id: null, seenAt: 0, seenAtWall: 0 });
+  if (view.snapWindowId !== snapWin.current.id) {
+    snapWin.current = { id: view.snapWindowId, seenAt: performance.now(), seenAtWall: Date.now() };
+  }
+  const sentSnap = useRef<number | null>(null);
+  const [snapStatus, setSnapStatus] = useState<{ id: number; status: 'sent' | 'over' } | null>(null);
+  const mySnap = snapStatus && snapStatus.id === view.snapWindowId ? snapStatus.status : null;
+  useEffect(() => {
+    const id = view.snapWindowId;
+    if (id === null) return;
+    const left = view.snapMs - (performance.now() - snapWin.current.seenAt);
+    const t = window.setTimeout(() => {
+      setSnapStatus((s) => (s?.id === id ? s : { id, status: 'over' }));
+      // Tell the server we're done so it needn't wait for us.
+      if (sentSnap.current !== id) socket.emit('game:snapPass', { windowId: id }, () => {});
+    }, Math.max(0, left));
+    return () => window.clearTimeout(t);
+  }, [view.snapWindowId]);
+
+  const snap = (ownerId: string, slot: number) => {
+    const id = view.snapWindowId!;
+    if (mySnap) return; // one snap per window
+    sentSnap.current = id;
+    setSnapStatus({ id, status: 'sent' });
+    const reactionMs = Math.round(performance.now() - snapWin.current.seenAt);
+    return call((ack) => socket.emit('game:snap', { windowId: id, ownerId, slot, reactionMs }, ack));
+  };
 
   /** Which cards are a valid tap right now — mirrors onCard. */
   const canTap = (ownerId: string, slot: number): boolean => {
     const s = view.players.find((p) => p.id === ownerId)?.slots[slot];
     if (!s) return false;
     const mine = ownerId === me;
-    if (view.phase === 'snap') return true;
+    if (view.phase === 'snap') return mySnap === null;
     if (view.phase === 'give') return view.give?.snapperId === me && mine;
     if (!myTurn) return false;
     if (view.phase === 'choose') return pick === 'take_discard' && mine;
@@ -306,7 +333,14 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
                 ownerId={me}
               />
             </div>
-            <ActionBar view={view} pick={pick} setPick={setPick} act={act} snapLeft={view.phase === 'snap' ? frac : 0} />
+            <ActionBar
+              view={view}
+              pick={pick}
+              setPick={setPick}
+              act={act}
+              snapLeft={view.phase === 'snap' && !mySnap ? Math.max(0, 1 - (now - snapWin.current.seenAtWall) / view.snapMs) : 0}
+              snapStatus={mySnap}
+            />
           </div>
         )}
         {view.result && <RoundResults view={view} room={room} onStart={onStart} />}

@@ -41,12 +41,34 @@ interface Bot {
 }
 
 export const DEFAULT_KICK_AFTER_MS = 5 * 60_000;
+/** How long past a snap window the server waits for slow connections' snaps (or "no snap"). */
+export const DEFAULT_SNAP_GRACE_MS = 1_500;
+/** Reported reaction times below this aren't believed (no human taps faster). */
+export const MIN_REACTION_MS = 120;
 /** The peek phase waits for offline players to come back (e.g. a phone reconnecting), up to this long. */
 export const DEFAULT_PEEK_HOLD_MS = 60_000;
 const PEEK_HOLD_STEP_MS = 5_000;
 
+/**
+ * One snap window's snaps, gathered before any is applied. Each client reports how long after it
+ * *saw* the window it tapped (or that it didn't), so a slow connection doesn't cost the race.
+ */
+interface SnapBatch {
+  windowId: number;
+  openedAt: number;
+  deadline: number;
+  /** Humans online when the window opened; the server waits for each one's snap or pass. */
+  waitingFor: Set<string>;
+  /** Who has snapped or passed (one snap per player per window). */
+  done: Set<string>;
+  entries: { playerId: string; ownerId: string; slot: number; at: number; order: number }[];
+}
+
 export class Room {
   connected = new Set<string>();
+  snaps: SnapBatch | null = null;
+  /** True while a snap batch is being replayed (so the replay doesn't open a new batch). */
+  resolvingSnaps = false;
   /** sessionId -> when they went offline; drives the auto-kick. */
   offlineSince = new Map<string, number>();
   kickTimers = new Map<string, NodeJS.Timeout>();
@@ -113,6 +135,7 @@ export class RoomManager {
     private peekHoldMs = DEFAULT_PEEK_HOLD_MS,
     /** Multiplies bot "thinking" delays (tests use a tiny value). */
     private botPace = 1,
+    private snapGraceMs = DEFAULT_SNAP_GRACE_MS,
   ) {}
 
   roomOf(sessionId: string): Room | null {
@@ -233,6 +256,7 @@ export class RoomManager {
     this.clearKick(room, sessionId);
     this.bySession.delete(sessionId);
     this.dropBot(sessionId);
+    if (room.snaps?.waitingFor.delete(sessionId)) this.settleSnaps(room);
     this.out.view(sessionId, null);
     this.out.detach(sessionId, room.rec.code);
     const humans = room.rec.players.filter((p) => !p.bot);
@@ -357,6 +381,14 @@ export class RoomManager {
 
   private botAct(room: Room, botId: string, action: Action) {
     if (!room.game || room.rec.status !== 'playing' || !this.bots.has(botId)) return;
+    if (action.type === 'SNAP') {
+      // Server-side, so its timing is exact: it snaps "now", into the window's batch.
+      const b = room.snaps;
+      if (b && b.windowId === action.windowId && !b.done.has(botId) && !room.resolvingSnaps) {
+        this.recordSnap(room, botId, action.ownerId, action.slot, Date.now());
+      }
+      return;
+    }
     try {
       this.apply(room, action);
     } catch (e) {
@@ -364,7 +396,6 @@ export class RoomManager {
       if (e.message !== 'Game state changed, try again' && !e.message.startsWith('Too slow')) {
         this.botRejections.push(`${action.type}: ${e.message}`);
       }
-      if (action.type === 'SNAP') return;
       // The table moved on or the move was refused: fall back to the plainest legal move.
       const kind = room.game.state.phase.kind;
       const fallback = kind === 'drawn' ? 'DISCARD_DRAWN' : kind === 'choose' ? 'DRAW_STOCK' : kind === 'ability' || kind === 'give' ? 'SKIP' : null;
@@ -392,10 +423,29 @@ export class RoomManager {
 
   /** R25: one timer per room fires a TICK at the current deadline. */
   private schedule(room: Room) {
+    if (room.resolvingSnaps) return; // resolveSnaps reschedules when it's done
     if (room.timer) clearTimeout(room.timer);
     room.timer = null;
     const deadline = room.game?.state.deadline;
-    if (deadline == null || room.rec.status !== 'playing') return;
+    if (deadline == null || room.rec.status !== 'playing') {
+      room.snaps = null;
+      return;
+    }
+    const st = room.game!.state;
+    if (st.phase.kind === 'snap') {
+      if (room.snaps?.windowId !== st.phase.windowId) {
+        room.snaps = {
+          windowId: st.phase.windowId,
+          openedAt: deadline - st.timings.snapMs,
+          deadline,
+          waitingFor: new Set(st.players.filter((p) => room.connected.has(p.id) && !this.bots.has(p.id)).map((p) => p.id)),
+          done: new Set(),
+          entries: [],
+        };
+      }
+      return this.settleSnaps(room);
+    }
+    room.snaps = null;
     room.timer = setTimeout(() => {
       room.timer = null;
       if (!room.game) return;
@@ -413,12 +463,88 @@ export class RoomManager {
     }, Math.max(0, deadline - Date.now()) + 10);
   }
 
+  /** A player's snap: queued until the window's snaps are resolved together. */
+  snap(sessionId: string, req: { windowId: number; ownerId: string; slot: number; reactionMs?: number }): void {
+    const room = this.roomOf(sessionId);
+    const b = room?.snaps;
+    if (!room || !b || b.windowId !== req.windowId || room.resolvingSnaps) throw new GameError('Too slow — the snap window is closed');
+    if (b.done.has(sessionId)) throw new GameError('You already snapped this time');
+    const elapsed = Date.now() - b.openedAt;
+    // Trust the reported reaction time only within bounds: not faster than a human, and not
+    // later than the moment it actually reached us. No report (old client): arrival time.
+    const claimed = Number.isFinite(req.reactionMs) ? req.reactionMs! : elapsed;
+    const reaction = Math.min(Math.max(claimed, MIN_REACTION_MS), elapsed);
+    this.recordSnap(room, sessionId, req.ownerId, req.slot, b.openedAt + reaction);
+  }
+
+  /** "My snap window ended and I didn't snap." Lets the window resolve without waiting out the grace. */
+  passSnap(sessionId: string, windowId: number): void {
+    const room = this.roomOf(sessionId);
+    const b = room?.snaps;
+    if (!room || !b || b.windowId !== windowId) return;
+    b.done.add(sessionId);
+    this.settleSnaps(room);
+  }
+
+  private recordSnap(room: Room, playerId: string, ownerId: string, slot: number, at: number) {
+    const b = room.snaps!;
+    b.entries.push({ playerId, ownerId, slot, at, order: b.entries.length });
+    b.done.add(playerId);
+    this.settleSnaps(room);
+  }
+
+  /** Resolve once the window is over and everyone has answered, or the grace period runs out. */
+  private settleSnaps(room: Room) {
+    const b = room.snaps;
+    if (!b) return;
+    const now = Date.now();
+    const everyone = [...b.waitingFor].every((id) => b.done.has(id));
+    if (now >= b.deadline && (everyone || now >= b.deadline + this.snapGraceMs)) return this.resolveSnaps(room);
+    if (room.timer) clearTimeout(room.timer);
+    const wake = now < b.deadline ? b.deadline : b.deadline + this.snapGraceMs;
+    room.timer = setTimeout(() => {
+      room.timer = null;
+      this.settleSnaps(room);
+    }, wake - now + 5);
+  }
+
+  /** Replay the window's snaps in the order they happened (not the order they arrived). */
+  private resolveSnaps(room: Room) {
+    const b = room.snaps!;
+    room.snaps = null;
+    if (room.timer) clearTimeout(room.timer);
+    room.timer = null;
+    room.resolvingSnaps = true;
+    try {
+      for (const e of [...b.entries].sort((x, y) => x.at - y.at || x.order - y.order)) {
+        try {
+          this.apply(room, { type: 'SNAP', playerId: e.playerId, windowId: b.windowId, ownerId: e.ownerId, slot: e.slot, at: e.at });
+        } catch (err) {
+          if (!(err instanceof GameError)) throw err;
+          if (this.bots.has(e.playerId) && !err.message.startsWith('Too slow')) this.botRejections.push(`SNAP: ${err.message}`);
+          const text = !err.message.startsWith('Too slow')
+            ? `Snap refused: ${err.message}`
+            : e.at > b.deadline ? 'Too slow — the snap window had closed' : 'Too slow — someone snapped first';
+          this.out.log(`s:${e.playerId}`, { to: e.playerId, text });
+        }
+      }
+    } finally {
+      room.resolvingSnaps = false;
+    }
+    const st = room.game?.state;
+    // Nobody took the card: the window closes as usual.
+    if (st?.phase.kind === 'snap' && st.phase.windowId === b.windowId) this.apply(room, { type: 'TICK' });
+    else this.schedule(room);
+  }
+
   setConnected(sessionId: string, connected: boolean) {
     const room = this.roomOf(sessionId);
     if (!room) return;
     if (connected) this.markOnline(room, sessionId);
     else this.markOffline(room, sessionId);
     this.broadcastRoom(room);
+    // Don't hold a snap window for someone who just dropped.
+    if (!connected && room.snaps?.waitingFor.delete(sessionId)) this.settleSnaps(room);
   }
 
   private markOnline(room: Room, sessionId: string) {

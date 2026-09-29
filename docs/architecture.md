@@ -62,7 +62,7 @@ There are three layers, each with one job:
   - **Restore on boot:** open rooms and their latest game snapshot are rehydrated.
 - **`bot.ts` (`BotBrain`):** a server bot's player logic. `RoomManager` feeds it the events its seat would receive and asks it for a move from `redactFor(state, botId)` after every change, then applies that move after a human-like delay, through the same `applyAction` path as any player. See [bots](bots.md).
 - **`store.ts`:** a `Store` interface with two implementations. `PgStore` (postgres.js) writes transactional room upserts and version-guarded game snapshots. `MemoryStore` is used when `DATABASE_URL` is unset.
-- **Ordering:** `applyAction` is synchronous, and Node runs one socket handler at a time. So actions, including two players snapping at once, are applied strictly in arrival order with no locks. Persistence is chained per room (`persistChain`), so snapshots land in order without blocking gameplay.
+- **Ordering:** `applyAction` is synchronous, and Node runs one socket handler at a time, so actions are applied strictly in arrival order with no locks. The exception is snaps: a window's snaps are gathered and replayed in reaction-time order once everyone has answered (see [decisions](decisions.md)). Persistence is chained per room (`persistChain`), so snapshots land in order without blocking gameplay.
 
 ## The client (`apps/web`)
 

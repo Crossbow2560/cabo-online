@@ -12,6 +12,8 @@ export interface SnapRequest {
   windowId: number;
   ownerId: string;
   slot: number;
+  /** How long after this client saw the window open the player tapped. */
+  reactionMs?: number;
 }
 
 /** Server bot difficulty presets (timings and snapping; see apps/server/src/bot.ts). */
@@ -60,4 +62,6 @@ export interface ClientToServer {
   'room:removeBot': (req: { id: string }, ack: (r: Ack) => void) => void;
   'game:action': (action: ClientAction, ack: (r: Ack) => void) => void;
   'game:snap': (req: SnapRequest, ack: (r: Ack) => void) => void;
+  /** This client's snap window ended without a snap. */
+  'game:snapPass': (req: { windowId: number }, ack: (r: Ack) => void) => void;
 }

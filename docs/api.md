@@ -54,7 +54,8 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `room:addBot` | `{ level }` | `{ ok }` | Host only, not mid-round. Seats a server-driven bot; `level` is `beginner`, `novice`, `intermediate` (default) or `expert` (see [bots](bots.md)). `Unknown bot level` otherwise. |
 | `room:removeBot` | `{ id }` | `{ ok }` | Host only, not mid-round. `No such bot` if `id` isn't a bot in the room. |
 | `game:action` | `ClientAction` | `{ ok }` | See the actions table below. Include `expectedVersion` (from the last `game:view`) to reject stale clicks. |
-| `game:snap` | `{ windowId, ownerId, slot }` | `{ ok }` | Only during the snap window. Rate-limited to 5 per second per socket. |
+| `game:snap` | `{ windowId, ownerId, slot, reactionMs }` | `{ ok }` | Queues your snap for this window (one per player). `reactionMs` = time from this client seeing the window to the tap; clamped server-side to ≥120ms and ≤ the time elapsed on arrival. The outcome arrives as `game:log` events when the window resolves; a lost race gets a private "Too slow — someone snapped first". Errors: `You already snapped this time`, `Too slow — the snap window is closed`. Rate-limited to 5 per second per socket. |
+| `game:snapPass` | `{ windowId }` | `{ ok }` | "My window ended and I didn't snap": lets the server resolve the window without waiting out the 1.5s grace. |
 
 **`ClientAction` types** (`playerId` is filled in by the server):
 
@@ -102,7 +103,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 - `players[]`: `{ id, name, ready, slots: ({ card: Card | null } | null)[] }`. A `null` slot is a gap; `card: null` is face-down to you.
 - `drawnCard`: yours only.
 - `ability`, `abilityPeeked`, `abilityPeekedMine`
-- `snapWindowId`, `give`
+- `snapWindowId`, `snapMs` (window length; clients time it from when they see it), `give`
 - `result`: `{ reason, scores, winners }` when the round has ended.
 
 **`GameEvent`:**
