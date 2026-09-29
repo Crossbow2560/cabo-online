@@ -1056,3 +1056,12 @@ button.pcard:disabled { opacity: 1; }
   @keyframes cabo-banner-fade { 0%, 100% { opacity: 0; transform: translate(-50%, -50%); } 10%, 85% { opacity: 1; transform: translate(-50%, -50%); } }
   .pcard--selected.pcard--face { transform: none; }
 }
+
+/* ---- spacing: room for the glow / selection rings between cards ---- */
+.hand { column-gap: max(10px, calc(var(--w) * 0.22)); row-gap: max(6px, calc(var(--w) * 0.12)); }
+.seats { gap: clamp(10px, 2.4vw, 32px); }
+/* tighter "changed" glow so it stays inside the gap */
+@keyframes card-changed {
+  0%, 55% { outline: 3px solid var(--cream); outline-offset: 1px; box-shadow: 0 0 0 4px var(--sand), 0 0 10px 2px var(--sand); }
+  100% { outline: 3px solid transparent; outline-offset: 1px; }
+}
