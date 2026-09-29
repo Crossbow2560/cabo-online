@@ -417,7 +417,11 @@ function peekAsViewer(spot: Spot, look: HTMLElement | null, card: Card, delay: n
   }, delay);
 }
 
-/** Everyone else: the card lifts, tips toward whoever is looking at it, then settles back. */
+/**
+ * Everyone else: the card lifts, tips toward whoever is looking at it, then settles back. A copy
+ * does the lifting in the motion layer: the real card sits inside a seat row that may clip (the
+ * top row scrolls on phones), and a lift toward the peeker would carry it out of view.
+ */
 function peekAsOnlooker(spot: Spot, by: string, delay: number) {
   window.setTimeout(() => {
     const el = cardEl(spot);
@@ -427,22 +431,40 @@ function peekAsOnlooker(spot: Spot, by: string, delay: number) {
       window.setTimeout(() => el.removeAttribute('data-flash'), 1200);
       return;
     }
-    const r = el.getBoundingClientRect();
+    settleNow(el);
+    const r = boxOf(el);
+    const turn = turnOf(el);
+    const size = sizeOf(el) ?? 'sm';
+    const look = lookOf(el);
+    if (!look) return;
+    const ghost = placed(look, size, r, 49, turn);
+    layer().appendChild(ghost);
+    el.style.visibility = 'hidden';
     const seat = document.querySelector<HTMLElement>(`[data-seat="${by}"]`)?.getBoundingClientRect();
     const tx = seat ? (seat.left + seat.width / 2 - (r.left + r.width / 2)) * 0.35 : 0;
     const ty = seat ? (seat.top + seat.height / 2 - (r.top + r.height / 2)) * 0.35 : -r.height * 0.4;
-    const [x, y] = unturn(tx, ty - 8, turnOf(el));
-    const lifted = `translate(${x}px, ${y}px) rotate(${tx > 0 ? 8 : -8}deg) scale(1.15)`;
+    // The copy pivots on its centre (a card's default origin), so the turn needs no correction.
+    const rest = `translate(0px, 0px) rotate(${turn}deg) scale(1)`;
+    const lifted = `translate(${tx}px, ${ty - 8}px) rotate(${turn + (tx > 0 ? 8 : -8)}deg) scale(1.15)`;
     const shadow = 'drop-shadow(0 10px 8px var(--saddle-soft))';
-    el.animate(
+    const anim = ghost.animate(
       [
-        { transform: 'none' },
+        { transform: rest },
         { offset: 0.25, transform: lifted, filter: shadow },
         { offset: 0.72, transform: lifted, filter: shadow },
-        { transform: 'none' },
+        { transform: rest },
       ],
       { duration: PEEK_WATCH_MS, easing: 'ease-in-out' },
     );
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      ghost.remove();
+      el.style.visibility = '';
+    };
+    anim.finished.then(done, done);
+    window.setTimeout(done, PEEK_WATCH_MS + 400); // safety net: never leave a card hidden
   }, delay);
 }
 

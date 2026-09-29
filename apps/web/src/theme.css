@@ -1263,3 +1263,10 @@ button.pcard:disabled { opacity: 1; }
 }
 /* the posse panel clips overflow; let the menu hang below it */
 .posse:has(.bot-menu__list) { overflow: visible; }
+
+/* ======== opponents' rows must not clip lifted or glowing cards ======== */
+/* side columns and the desktop top row never need to scroll */
+.seats-side { overflow: visible; }
+.table--sides .seats { overflow: visible; }
+/* where the top row does scroll (phones, portrait tablets), leave room above for lifts and glows */
+.seats { padding-top: 10px; }
