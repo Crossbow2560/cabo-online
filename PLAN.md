@@ -120,7 +120,7 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
 - **R20:** `CALL_CABO` replaces the caller's whole turn, and it is allowed from the first turn onward.
   - Only one Cabo is allowed per round, so nobody can call during the final round.
   - The caller takes no more turns.
-  - The caller's cards can still be swapped and snapped, as written. A "lock caller's cards" setting can be added later.
+  - The caller's cards can still be snapped, as written, but no longer swapped (see R29).
 - **R21:** The final round is one turn for each other player, in seat order. The round ends after the last of those turns and its snap window.
 - **R22:** Scoring:
   - Only the cards present in a player's grid count; gaps count 0, and a player with 0 cards scores 0.
@@ -144,6 +144,10 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - A seat is tied to the session token, and the server stores only a sha256 of it.
   - Nobody can join a game that's already running; only the existing seats can reconnect.
   - A new socket for the same session replaces the old one.
+- **R29:** **The CABO caller is locked against swaps.** Once CABO is called, nobody may swap a card with the caller:
+  - A J/Q blind swap can't target the caller. If the caller is the only other player with cards, the J/Q has no usable ability and the snap window opens straight away (as R9).
+  - A Black King may still look at one of the caller's cards, but can't swap it; the player can only keep the cards where they are.
+  - Snapping the caller's cards (R19) and giving a card into a gap after such a snap (R17) are still allowed.
 - **R28:** **Spam.** The server rate-limits each socket, e.g. at most 5 snaps per second. Snaps above that are dropped silently.
 
 ## 1. Repo layout (pnpm workspaces)

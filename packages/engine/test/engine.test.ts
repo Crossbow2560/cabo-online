@@ -392,6 +392,36 @@ describe('snapping', () => {
 });
 
 describe('cabo & end of round', () => {
+  it("R29: nobody can swap with the CABO caller (J/Q or Black King), but may still look and snap", () => {
+    // p1 calls CABO; p2 plays next and discards a Queen.
+    let s = playing({ hands: HANDS, stock: ['QD'] });
+    s = ok(s, { type: 'CALL_CABO', playerId: 'p1' });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p2' });
+    s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p2' });
+    expect(s.phase).toMatchObject({ kind: 'ability', ability: 'blind_swap' });
+    expect(err(s, { type: 'BLIND_SWAP', playerId: 'p2', mySlot: 0, targetId: 'p1', slot: 0 })).toBe('invalid');
+    const q = ok(s, { type: 'BLIND_SWAP', playerId: 'p2', mySlot: 0, targetId: 'p0', slot: 0 });
+    expect(q.players[1].slots).toEqual(s.players[1].slots); // caller untouched
+
+    // Black King: looking at the caller's card is fine, swapping it is not.
+    let k = playing({ hands: HANDS, stock: ['KS'] });
+    k = ok(k, { type: 'CALL_CABO', playerId: 'p1' });
+    k = ok(k, { type: 'DRAW_STOCK', playerId: 'p2' });
+    k = ok(k, { type: 'DISCARD_DRAWN', playerId: 'p2' });
+    k = ok(k, { type: 'PEEK_OTHER', playerId: 'p2', targetId: 'p1', slot: 0 });
+    k = ok(k, { type: 'PEEK_OWN', playerId: 'p2', slot: 0 });
+    expect(err(k, { type: 'SWAP', playerId: 'p2', mySlot: 0 })).toBe('invalid');
+    expect(ok(k, { type: 'SKIP', playerId: 'p2' }).phase.kind).toBe('snap');
+  });
+
+  it("R29: a J/Q has no ability when the CABO caller is the only one to swap with", () => {
+    let s = playing({ n: 2, hands: [['AS', '5S'], ['2S', '3S']], stock: ['JD'] });
+    s = ok(s, { type: 'CALL_CABO', playerId: 'p1' });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p0' });
+    s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p0' });
+    expect(s.phase.kind).toBe('snap');
+  });
+
   it('R20/R21: others each get exactly one more turn, then reveal & score', () => {
     let s = playing({ hands: [['AS'], ['2S'], ['JOKER', 'KH']] });
     s = ok(s, { type: 'CALL_CABO', playerId: 'p1' });

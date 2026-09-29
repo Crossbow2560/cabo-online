@@ -422,6 +422,8 @@ class Ctx {
   }
 
   private swap(me: PlayerState, mySlot: number, target: PlayerState, slot: number): void {
+    // R29: once CABO is called, the caller's hand is locked against swaps (J/Q and Black King).
+    if (target.id === this.s.caboCalledBy) reject('invalid', "The player who called CABO can't be swapped with");
     const mine = this.ownCard(me, mySlot);
     const theirs = this.ownCard(target, slot);
     me.slots[mySlot] = theirs;
@@ -438,9 +440,11 @@ class Ctx {
   private abilityUsable(me: PlayerState, ability: string): boolean {
     const mineHas = me.slots.some(Boolean);
     const othersHave = this.s.players.some((p) => p.id !== me.id && p.slots.some(Boolean));
+    // R29: a blind swap needs someone other than the CABO caller to swap with.
+    const swappable = this.s.players.some((p) => p.id !== me.id && p.id !== this.s.caboCalledBy && p.slots.some(Boolean));
     if (ability === 'peek_own') return mineHas;
-    if (ability === 'blind_swap') return mineHas && othersHave;
-    return othersHave;
+    if (ability === 'blind_swap') return mineHas && swappable;
+    return othersHave; // a Black King may still look at the caller's cards, just not swap them
   }
 
   private expectPhase<K extends GameState['phase']['kind']>(kind: K): Extract<GameState['phase'], { kind: K }> {

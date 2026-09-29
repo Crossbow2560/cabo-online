@@ -131,6 +131,9 @@ export class BotBrain {
   private ability(view: PlayerView, my: SlotInfo[], base: { playerId: string; expectedVersion: number }): Action {
     const others = view.players.filter((p) => p.id !== this.id).flatMap((p) => this.slots(view, p.id));
     const unknownOthers = others.filter((s) => !s.card);
+    // R29: the CABO caller's cards can't be swapped, so swaps (and Black King looks) aim elsewhere.
+    const swappable = others.filter((s) => s.playerId !== view.caboCalledBy);
+    const unknownSwappable = swappable.filter((s) => !s.card);
     const skip: Action = { type: 'SKIP', ...base };
     switch (view.ability) {
       case 'peek_own': {
@@ -145,15 +148,15 @@ export class BotBrain {
         const worst = this.worst(my);
         if (!worst) return skip;
         // A known low card of theirs beats a blind gamble.
-        const best = others.filter((s) => s.card).sort((a, b) => a.pts - b.pts)[0];
+        const best = swappable.filter((s) => s.card).sort((a, b) => a.pts - b.pts)[0];
         if (best && best.pts <= worst.pts - 3) return { type: 'BLIND_SWAP', mySlot: worst.slot, targetId: best.playerId, slot: best.slot, ...base };
-        const t = pick(unknownOthers);
+        const t = pick(unknownSwappable);
         if (t && worst.pts >= 10) return { type: 'BLIND_SWAP', mySlot: worst.slot, targetId: t.playerId, slot: t.slot, ...base };
         return skip;
       }
       case 'look_swap': {
         if (!view.abilityPeeked) {
-          const t = pick(unknownOthers) ?? others.sort((a, b) => a.pts - b.pts)[0];
+          const t = pick(unknownSwappable) ?? swappable.sort((a, b) => a.pts - b.pts)[0] ?? pick(others);
           return t ? { type: 'PEEK_OTHER', targetId: t.playerId, slot: t.slot, ...base } : skip;
         }
         if (view.abilityPeekedMine === null) {
@@ -162,7 +165,8 @@ export class BotBrain {
         }
         const theirs = this.known.get(slotKey(view.abilityPeeked.playerId, view.abilityPeeked.slot));
         const mine = this.known.get(slotKey(this.id, view.abilityPeekedMine));
-        return theirs && mine && cardValue(theirs) < cardValue(mine) ? { type: 'SWAP', mySlot: view.abilityPeekedMine, ...base } : skip;
+        const canSwap = view.abilityPeeked.playerId !== view.caboCalledBy;
+        return canSwap && theirs && mine && cardValue(theirs) < cardValue(mine) ? { type: 'SWAP', mySlot: view.abilityPeekedMine, ...base } : skip;
       }
       default:
         return skip;

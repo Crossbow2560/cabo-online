@@ -73,10 +73,14 @@ export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
     case 'ability':
       // Black King, after looking at both cards: decide.
       if (view.ability === 'look_swap' && view.abilityPeeked && view.abilityPeekedMine !== null) {
+        // R29: no swapping with the player who called CABO.
+        const locked = view.abilityPeeked.playerId === view.caboCalledBy;
         return (
           <div className="actions">
-            <button className="btn btn--primary" onClick={() => act({ type: 'SWAP', mySlot: view.abilityPeekedMine! })}>Swap them</button>
-            <button className="btn btn--light" onClick={() => act({ type: 'SKIP' })}>Keep them</button>
+            {!locked && (
+              <button className="btn btn--primary" onClick={() => act({ type: 'SWAP', mySlot: view.abilityPeekedMine! })}>Swap them</button>
+            )}
+            <button className={`btn ${locked ? 'btn--primary' : 'btn--light'}`} onClick={() => act({ type: 'SKIP' })}>Keep them</button>
           </div>
         );
       }

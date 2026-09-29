@@ -14,7 +14,7 @@ A real-time multiplayer web version of **Cabo**, the memory card game where the 
 | [🧪 Testing](docs/testing.md) | How to run tests and what they cover |
 | [🤖 Bots](docs/bots.md) | Lobby bots (server-side) and browser bots for playing against a real human |
 
-The full rule set and every ruling the engine enforces (R1–R28) live in [PLAN.md](PLAN.md).
+The full rule set and every ruling the engine enforces (R1–R29) live in [PLAN.md](PLAN.md).
 
 ---
 

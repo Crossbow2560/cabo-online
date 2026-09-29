@@ -27,6 +27,8 @@ The same browser profile is always the same player. To test alone, use private w
   | J / Q | **Blind swap:** tap one of your cards, then an opponent's. |
   | Black K | **Look & swap:** tap an opponent's card, then one of yours. Both stay face-up for you; then choose **Swap them** or **Keep them**. |
 
+  Once someone calls CABO, their cards are off limits for swaps: a J/Q can't blind swap with them, and a Black King can look at their card but only **Keep them**. Snapping their cards is still allowed.
+
   **Skip ability** is always available. The peeked card lifts toward you for a few seconds; other players see which card you looked at, but not its value.
 - **Snapping:** after any discard there's a 3.5s **SNAP!** window. Tap any card, yours or an opponent's, that you think matches the discard's rank.
   - You get **one** snap per window. Your 3.5s start when the window appears on *your* screen.

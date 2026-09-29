@@ -136,7 +136,8 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         case 'peek_other': return !mine;
         // R10: theirs first, then one of yours; then Swap / Keep buttons (no more taps).
         case 'look_swap': return !view.abilityPeeked ? !mine : view.abilityPeekedMine === null && mine;
-        case 'blind_swap': return mine || (pick !== null && typeof pick === 'object');
+        // R29: the CABO caller's cards can't be swapped with.
+        case 'blind_swap': return mine || (pick !== null && typeof pick === 'object' && ownerId !== view.caboCalledBy);
       }
     }
     return false;
@@ -454,9 +455,17 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
       return myTurn ? <>Keep it (tap one of your cards) or discard it</> : <>{cur} is eyeing a drawn card…</>;
     case 'ability':
       if (!myTurn) return <>{cur} is using a special card</>;
-      if (view.ability === 'look_swap' && view.abilityPeeked && view.abilityPeekedMine !== null) return <>Swap these two cards, or keep them where they are?</>;
+      if (view.ability === 'look_swap' && view.abilityPeeked && view.abilityPeekedMine !== null) {
+        return view.abilityPeeked.playerId === view.caboCalledBy
+          ? <>{name(view.caboCalledBy)} called CABO, so their cards can't be swapped. Keep them.</>
+          : <>Swap these two cards, or keep them where they are?</>;
+      }
       if (view.ability === 'look_swap' && view.abilityPeeked) return <>Now tap one of your own cards to look at it</>;
-      if (view.ability === 'blind_swap' && pick && typeof pick === 'object') return <>Now tap another player's card to swap with your #{pick.blindMine + 1}</>;
+      if (view.ability === 'blind_swap' && pick && typeof pick === 'object') {
+        return view.caboCalledBy
+          ? <>Now tap another player's card (not {name(view.caboCalledBy)}'s, they called CABO) to swap with your #{pick.blindMine + 1}</>
+          : <>Now tap another player's card to swap with your #{pick.blindMine + 1}</>;
+      }
       return <>{ABILITY_TEXT[view.ability!]} — or skip</>;
     case 'snap':
       return <>Discarded {view.discardTop ? cardLabel(view.discardTop) : ''} — snap a match! Wrong guesses cost a card.</>;
