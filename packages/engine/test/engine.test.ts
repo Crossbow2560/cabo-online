@@ -279,11 +279,13 @@ describe('snapping', () => {
   };
   const wid = (s: GameState) => (s.phase as { windowId: number }).windowId;
 
-  it('R13: own-card snap removes the card and leaves a gap (R18), then advances turn', () => {
+  it('R13: own-card snap removes the card and leaves a gap (R18); after the streak window the turn advances', () => {
     let s = withWindow();
     s = ok(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 3 });
     expect(s.players[0].slots).toEqual([c('2S'), c('3S'), c('4S'), null]);
     expect(s.discard.at(-1)).toEqual(c('5S'));
+    expect(s.phase).toMatchObject({ kind: 'snap', onlyFor: 'p0' }); // R30
+    s = ok(s, { type: 'TICK' }, T0 + s.timings.snapMs);
     expect(s.phase.kind).toBe('choose');
     expect(s.players[s.currentIndex].id).toBe('p2');
   });
@@ -340,7 +342,7 @@ describe('snapping', () => {
     s = ok(s, { type: 'GIVE_CARD', playerId: 'p2', mySlot: 2 });
     expect(s.players[0].slots[3]).toEqual(c('KC'));
     expect(s.players[2].slots[2]).toBeNull();
-    expect(s.phase.kind).toBe('choose');
+    expect(s.phase).toMatchObject({ kind: 'snap', onlyFor: 'p2' }); // R30: then the snapper's streak
   });
 
   it('R17: give is optional (skip or timeout)', () => {
@@ -348,8 +350,9 @@ describe('snapping', () => {
     s = ok(s, { type: 'SNAP', playerId: 'p2', windowId: wid(s), ownerId: 'p0', slot: 3 });
     const skipped = ok(s, { type: 'SKIP', playerId: 'p2' });
     expect(skipped.players[0].slots[3]).toBeNull();
+    expect(skipped.phase).toMatchObject({ kind: 'snap', onlyFor: 'p2' });
     const timed = ok(s, { type: 'TICK' }, T0 + s.timings.choiceMs);
-    expect(timed.phase.kind).toBe('choose');
+    expect(timed.phase).toMatchObject({ kind: 'snap', onlyFor: 'p2' });
   });
 
   it('R17: snapper with no cards skips give', () => {
@@ -357,7 +360,39 @@ describe('snapping', () => {
     s = ok(s, { type: 'DRAW_STOCK', playerId: 'p1' });
     s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p1' });
     s = ok(s, { type: 'SNAP', playerId: 'p2', windowId: wid(s), ownerId: 'p0', slot: 3 });
-    expect(s.phase.kind).toBe('choose');
+    expect(s.phase).toMatchObject({ kind: 'snap', onlyFor: 'p2' }); // no give; straight to the streak
+  });
+
+  it('R30: the first snapper gets a snap streak for their own cards only', () => {
+    // p0 holds two 5s; p1 discards a 5.
+    let s = playing({ hands: [['5S', '3S', '5C', '4S'], HANDS[1], ['5H', '8C', '9C', 'QC']], stock: ['5D'] });
+    s = ok(s, { type: 'DRAW_STOCK', playerId: 'p1' });
+    s = ok(s, { type: 'DISCARD_DRAWN', playerId: 'p1' });
+    s = ok(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 0 });
+    expect(s.phase).toMatchObject({ kind: 'snap', onlyFor: 'p0' });
+    expect(redactFor(s, 'p2').snapOnlyFor).toBe('p0');
+    // Nobody else may snap in it, and p0 can't reach into someone else's hand.
+    expect(err(s, { type: 'SNAP', playerId: 'p2', windowId: wid(s), ownerId: 'p2', slot: 0 })).toBe('too_slow');
+    expect(err(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p2', slot: 0 })).toBe('invalid');
+    // Another 5 of theirs: gone, and the streak goes on.
+    s = ok(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 2 });
+    expect(s.players[0].slots).toEqual([null, c('3S'), null, c('4S')]);
+    expect(s.phase).toMatchObject({ kind: 'snap', onlyFor: 'p0' });
+    // Done: the turn moves on.
+    const done = ok(s, { type: 'SKIP', playerId: 'p0' });
+    expect(done.phase.kind).toBe('choose');
+    expect(done.players[done.currentIndex].id).toBe('p2');
+    // A wrong guess instead: penalty card, streak over.
+    const miss = ok(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 1 });
+    expect(miss.players[0].slots).toHaveLength(5);
+    expect(miss.phase.kind).toBe('choose');
+  });
+
+  it('R30: the streak window opens even with no matching card left (it reveals nothing)', () => {
+    let s = withWindow();
+    s = ok(s, { type: 'SNAP', playerId: 'p0', windowId: wid(s), ownerId: 'p0', slot: 3 });
+    expect(s.phase).toMatchObject({ kind: 'snap', onlyFor: 'p0' });
+    expect(ok(s, { type: 'TICK' }, T0 + s.timings.snapMs).phase.kind).toBe('choose');
   });
 
   it('R13: kings match kings, jokers match jokers', () => {

@@ -7,7 +7,7 @@
 │       ├── src/
 │       │   ├── cards.ts         Card/Rank/Suit, scoring, abilities, deck, seeded shuffle, labels
 │       │   ├── state.ts         GameState, Phase union, Action union, Motion/Spot, timings, events
-│       │   ├── reducer.ts       createGame, applyAction (all rules R1–R29), scoreOf
+│       │   ├── reducer.ts       createGame, applyAction (all rules R1–R30), scoreOf
 │       │   ├── view.ts          redactFor: the only state → client projection
 │       │   ├── protocol.ts      Socket.IO event types, ClientAction, RoomState
 │       │   └── index.ts
@@ -44,7 +44,7 @@
 ├── .github/workflows/deploy.yml test on GitHub runner, deploy on self-hosted runner
 ├── Dockerfile                   multi-stage: build web, run server with tsx
 ├── docker-compose.yml           single service, port 3101, env from apps/server/.env
-├── PLAN.md                      original rules text + engine rulings R1–R29
+├── PLAN.md                      original rules text + engine rulings R1–R30
 └── package.json                 npm workspaces (packages/*, apps/*)
 ```
 

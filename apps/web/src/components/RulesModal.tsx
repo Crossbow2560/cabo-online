@@ -58,6 +58,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             <li>Snap your own card: you now have one fewer card.</li>
             <li>Snap an opponent’s card: you may move one of your cards into their gap.</li>
             <li>Wrong guess: the card goes back and you take a <b>penalty card</b>.</li>
+            <li><b>Snap streak:</b> whoever snaps first gets a short window of their own to snap more cards of the same rank from their own hand, one after another. It opens even if they have no match left, so nobody can tell. A wrong guess costs a penalty card and ends the streak. Press <b>Done</b> to stop early.</li>
           </ul>
 
           <h3>Scoring</h3>
@@ -74,7 +75,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
           </table>
 
           <p className="attribution">
-            Icons by Delapouite, Lorc &amp; Guard13007 — <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a> (CC BY 3.0).
+            Icons by Delapouite, Lorc &amp; Guard13007 - <a href="https://game-icons.net" target="_blank" rel="noreferrer">game-icons.net</a> (CC BY 3.0).
             Card sounds by <a href="https://kenney.nl/assets/casino-audio" target="_blank" rel="noreferrer">Kenney</a> (CC0).
           </p>
         </div>

@@ -75,7 +75,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `PEEK_OTHER` | `targetId`, `slot` | `ability` (9/10, or the Black King's first step) |
 | `BLIND_SWAP` | `mySlot`, `targetId`, `slot` | `ability` (J/Q) |
 | `SWAP` | `mySlot` (must be the card you looked at) | `ability` (Black King, after both peeks) |
-| `SKIP` | none | `ability` or `give` |
+| `SKIP` | none | `ability`, `give`, or your own snap streak (`snap` with `snapOnlyFor` = you) to end it |
 | `GIVE_CARD` | `mySlot` | `give` (after snapping an opponent's card) |
 
 **Rule rejections** come back as `{ ok: false, error }`, e.g.:
@@ -110,7 +110,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 - `players[]`: `{ id, name, ready, slots: ({ card: Card | null } | null)[] }`. A `null` slot is a gap; `card: null` is face-down to you.
 - `drawnCard`: yours only.
 - `ability`, `abilityPeeked`, `abilityPeekedMine`
-- `snapWindowId`, `snapMs` (window length; clients time it from when they see it), `give`
+- `snapWindowId`, `snapMs` (window length; clients time it from when they see it), `snapOnlyFor` (set during a snap streak: only that player may snap, their own cards), `give`
 - `result`: `{ reason, scores, winners }` when the round has ended.
 
 **`GameEvent`:**

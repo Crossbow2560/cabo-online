@@ -111,7 +111,7 @@ class Ctx {
     const phase = s.phase;
     if (phase.kind === 'give') {
       if (me.id !== phase.snapperId) reject('not_your_turn', 'Waiting for the snapper to give a card');
-      if (a.type === 'SKIP') return this.log(`${me.name} chose not to give a card`), this.advanceTurn();
+      if (a.type === 'SKIP') return this.log(`${me.name} chose not to give a card`), this.openSnapWindow(me.id); // R30
       if (a.type !== 'GIVE_CARD') reject('wrong_phase', 'Give a card or skip');
       const g = a as Extract<Action, { type: 'GIVE_CARD' }>;
       const card = this.ownCard(me, g.mySlot);
@@ -121,6 +121,12 @@ class Ctx {
       this.log(`${me.name} moved their slot ${g.mySlot + 1} into ${target.name}'s slot ${phase.slot + 1}`, {
         moves: [{ from: slotAt(me.id, g.mySlot), to: slotAt(target.id, phase.slot) }],
       });
+      return this.openSnapWindow(me.id); // R30: then their snap streak
+    }
+
+    // R30: the snapper can end their snap streak early.
+    if (phase.kind === 'snap' && phase.onlyFor === me.id && a.type === 'SKIP') {
+      this.log(`${me.name} is done snapping`);
       return this.advanceTurn();
     }
 
@@ -249,6 +255,11 @@ class Ctx {
     if (ph.kind !== 'snap' || ph.windowId !== windowId || at > s.deadline!) {
       reject('too_slow', 'Too slow — the snap window is closed'); // R14
     }
+    // R30: a snap streak belongs to the first snapper, and only their own cards can go.
+    const onlyFor = ph.kind === 'snap' ? ph.onlyFor : undefined;
+    const streak = onlyFor !== undefined;
+    if (streak && snapper.id !== onlyFor) reject('too_slow', `Too slow — ${this.player(onlyFor).name} snapped first`);
+    if (streak && ownerId !== snapper.id) reject('invalid', 'In a snap streak you can only snap your own cards');
     const owner = this.player(ownerId);
     const card = this.ownCard(owner, slot); // R16: empty / bad slot is invalid, no penalty
     const top = s.discard[s.discard.length - 1];
@@ -265,7 +276,9 @@ class Ctx {
         s.deadline = this.now + s.timings.choiceMs;
         return;
       }
-      return this.advanceTurn();
+      // R30: the first snapper (and each further snap of theirs) gets a window to snap again,
+      // whether or not they hold another match, so it gives nothing away.
+      return this.openSnapWindow(snapper.id);
     }
 
     // R15: wrong snap — card is revealed, returned, and the snapper takes a penalty card.
@@ -276,6 +289,7 @@ class Ctx {
     });
     if (!penalty) return this.endRound('deck_exhausted'); // R23
     snapper.slots.push(penalty); // R18: appended, never fills a gap
+    if (streak) return this.advanceTurn(); // R30: a miss ends the streak
   }
 
   // ---- turn flow ----
@@ -307,7 +321,7 @@ class Ctx {
         return this.advanceTurn();
       case 'give':
         this.log(`${this.player(ph.snapperId).name} ran out of time — no card given`);
-        return this.advanceTurn();
+        return this.openSnapWindow(ph.snapperId); // R30
     }
   }
 
@@ -319,10 +333,11 @@ class Ctx {
     this.log(`Everyone is ready. ${this.current().name} goes first`);
   }
 
-  private openSnapWindow(): void {
+  /** A snap window for everyone, or (R30) a snap streak window for `onlyFor` alone. */
+  private openSnapWindow(onlyFor?: string): void {
     const s = this.s;
     s.windowCounter++;
-    s.phase = { kind: 'snap', windowId: s.windowCounter };
+    s.phase = onlyFor ? { kind: 'snap', windowId: s.windowCounter, onlyFor } : { kind: 'snap', windowId: s.windowCounter };
     s.deadline = this.now + s.timings.snapMs;
   }
 
@@ -376,7 +391,7 @@ class Ctx {
     if (ph.kind === 'ability' && ph.peeked?.playerId === id) {
       return this.openSnapWindow(); // the Black King target is gone — nothing left to swap with
     }
-    if (ph.kind === 'give' && (ph.snapperId === id || ph.targetId === id)) {
+    if ((ph.kind === 'give' && (ph.snapperId === id || ph.targetId === id)) || (ph.kind === 'snap' && ph.onlyFor === id)) {
       if (wasCurrent) s.currentIndex = (k - 1 + n) % n;
       return this.advanceTurn();
     }

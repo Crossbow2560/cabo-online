@@ -84,6 +84,15 @@ export class BotBrain {
       case 'snap': {
         if (view.snapWindowId === null || this.snappedWindow === view.snapWindowId || !view.discardTop) return null;
         const rank = view.discardTop.rank;
+        // R30: our snap streak: another matching card of ours we remember, or we're done.
+        if (view.snapOnlyFor) {
+          if (view.snapOnlyFor !== me) return null;
+          this.snappedWindow = view.snapWindowId;
+          const again = my.find((s) => s.card?.rank === rank);
+          return again
+            ? { type: 'SNAP', playerId: me, windowId: view.snapWindowId, ownerId: me, slot: again.slot }
+            : { type: 'SKIP', ...base };
+        }
         // Own matches first; opponents' only if we have a card to give back.
         const own = my.find((s) => s.card?.rank === rank);
         const theirs = my.length

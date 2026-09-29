@@ -18,6 +18,28 @@ export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
   const mePlayer = view.players.find((p) => p.id === me)!;
   const hasCards = mePlayer.slots.some(Boolean);
 
+  // R30: the first snapper's streak: snap another of the same rank from their own hand, or stop.
+  if (view.phase === 'snap' && view.snapOnlyFor) {
+    const rank = view.discardTop?.rank ?? '';
+    const mine = view.snapOnlyFor === me;
+    const who = view.players.find((p) => p.id === view.snapOnlyFor)?.name ?? 'The snapper';
+    return (
+      <div className="actions">
+        <div className="snap-banner snap-banner--streak" role="status">
+          <span className="snap-banner__word">{mine ? 'STREAK!' : 'SNAP!'}</span>
+          <span className="snap-banner__hint">
+            {mine ? (snapStatus === 'sent' ? 'Checking…' : `Snap another ${rank} of yours`) : `${who} may snap more ${rank}s`}
+          </span>
+          {mine && (
+            <button className="btn btn--light btn--sm snap-banner__done" onClick={() => act({ type: 'SKIP' })}>
+              Done
+            </button>
+          )}
+          <span className="snap-banner__bar" style={{ transform: `scaleX(${snapLeft})` }} />
+        </div>
+      </div>
+    );
+  }
   if (view.phase === 'snap') {
     return (
       <div className="actions">

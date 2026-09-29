@@ -34,6 +34,7 @@ The same browser profile is always the same player. To test alone, use private w
   - You get **one** snap per window. Your 3.5s start when the window appears on *your* screen.
   - The fastest correct snap wins: snaps are compared by how quickly each player reacted, so a laggy connection doesn't cost you the race. The result shows once everyone's window has ended.
   - Slower correct snaps are "too slow", with no penalty.
+  - **Snap streak:** whoever snaps first then gets a 3.5s window of their own to snap more cards of the same rank from their own hand, one after another (say you hold two Aces and an Ace is discarded: snap one, then the other). It opens even if you have no match left, so nobody can tell. A wrong guess costs a penalty card and ends the streak; **Done** stops it early.
   - A wrong guess shows the card to everyone, puts it back, and gives you a face-down penalty card.
   - If you snapped an opponent's card, you may tap one of yours to give them, or press **Don't give a card**.
 - **Scoring:**

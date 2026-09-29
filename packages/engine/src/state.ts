@@ -38,7 +38,11 @@ export type Phase =
       peeked?: { playerId: string; slot: number };
       peekedMine?: number;
     }
-  | { kind: 'snap'; windowId: number }
+  /**
+   * `onlyFor` (R30): a snap streak. After the first correct snap, the snapper alone gets another
+   * window to snap more cards of the same rank from their own hand.
+   */
+  | { kind: 'snap'; windowId: number; onlyFor?: string }
   | { kind: 'give'; snapperId: string; targetId: string; slot: number }
   | {
       kind: 'ended';

@@ -148,6 +148,12 @@ The engine enforces these. Each one either fills a gap in the spec or closes an 
   - A J/Q blind swap can't target the caller. If the caller is the only other player with cards, the J/Q has no usable ability and the snap window opens straight away (as R9).
   - A Black King may still look at one of the caller's cards, but can't swap it; the player can only keep the cards where they are.
   - Snapping the caller's cards (R19) and giving a card into a gap after such a snap (R17) are still allowed.
+- **R30:** **Snap streak.** Whoever makes the first correct snap on a discard then gets a snap window of their own (same length as a normal one):
+  - Only they may snap in it, and only cards from their own hand, of the same rank. Each correct snap opens another streak window, so they can clear several matching cards one after another.
+  - The window opens whether or not they still hold a match, so it reveals nothing about their hand.
+  - A wrong guess costs a penalty card (R15) and ends the streak. They can also stop with **Done**, or let the window run out; then the next turn starts.
+  - After snapping an opponent's card, the optional give (R17) comes first, then the streak.
+  - Streak snaps aren't raced, so the server applies them as they arrive rather than gathering them for reaction-time ordering (R14).
 - **R28:** **Spam.** The server rate-limits each socket, e.g. at most 5 snaps per second. Snaps above that are dropped silently.
 
 ## 1. Repo layout (pnpm workspaces)

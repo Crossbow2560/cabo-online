@@ -222,7 +222,9 @@ describe('server', () => {
     // Nothing is decided until the window is over and everyone has answered.
     expect(state().players.find((p) => p.id === b.id)!.slots[0]).not.toBeNull();
     await cur.emit('game:snapPass', { windowId });
-    await cur.until((v) => v.phase !== 'snap', 3_000);
+    // Decided: the winner's snap streak (R30) opens.
+    const won = await cur.until((v) => v.snapOnlyFor !== null || v.phase !== 'snap', 3_000);
+    expect(won.snapOnlyFor).toBe(b.id);
     expect(state().players.find((p) => p.id === b.id)!.slots[0]).toBeNull(); // B won
     expect(state().players.find((p) => p.id === a.id)!.slots[0]).not.toBeNull();
     expect(state().players.map((p) => p.slots.length)).toEqual([4, 4, 4]); // no penalty for A
@@ -238,7 +240,7 @@ describe('server', () => {
     await sleep(300);
     await b.emit('game:snap', { windowId, ownerId: b.id, slot: 0, reactionMs: 400 });
     await cur.emit('game:snapPass', { windowId });
-    await cur.until((v) => v.phase !== 'snap', 3_000);
+    await cur.until((v) => v.snapOnlyFor !== null || v.phase !== 'snap', 3_000);
     expect(state().players.find((p) => p.id === a.id)!.slots[0]).toBeNull(); // A won
   });
 
@@ -723,5 +725,36 @@ describe('spectators', () => {
     await host.emit('room:leave');
     expect(await closed).toBeNull();
     expect(await b.emit('room:spectate', { code })).toMatchObject({ ok: false, error: 'Room not found' });
+  });
+});
+
+describe('snap streak (R30)', () => {
+  it('the first snapper alone snaps more of the rank, applied straight away; Done ends it', async () => {
+    const { url, server } = await start(new MemoryStore(), undefined, { timings: { snapMs: 1_500 } });
+    const { bots, code } = await lobby(url);
+    const v = await startAndReady(bots);
+    const cur = bots.find((x) => x.id === v.currentPlayerId)!;
+    const [a, other] = bots.filter((x) => x !== cur);
+    await cur.emit('game:action', { type: 'DRAW_STOCK' });
+    await cur.emit('game:action', { type: 'KEEP', slot: 0 });
+    const w = await cur.until((x) => x.phase === 'snap');
+    // Rig: A holds two cards matching the discard.
+    const st = () => server.rooms.rooms.get(code)!.game!.state;
+    const top = st().discard.at(-1)!;
+    const hand = st().players.find((p) => p.id === a.id)!.slots;
+    hand[0] = { ...top };
+    hand[1] = { ...top };
+
+    await a.emit('game:snap', { windowId: w.snapWindowId, ownerId: a.id, slot: 0, reactionMs: 300 });
+    for (const p of [cur, other]) await p.emit('game:snapPass', { windowId: w.snapWindowId });
+    const streak = await a.until((x) => x.snapOnlyFor === a.id, 4_000);
+    // Others can't snap in it; A's second match goes at once.
+    expect(await other.emit('game:snap', { windowId: streak.snapWindowId, ownerId: other.id, slot: 0 })).toMatchObject({ ok: false });
+    expect((await a.emit('game:snap', { windowId: streak.snapWindowId, ownerId: a.id, slot: 1, reactionMs: 200 })).ok).toBe(true);
+    const now = st().players.find((p) => p.id === a.id)!.slots;
+    expect([now[0], now[1]]).toEqual([null, null]); // both matches gone
+    const again = await a.until((x) => x.snapOnlyFor === a.id && x.snapWindowId !== streak.snapWindowId);
+    expect((await a.emit('game:action', { type: 'SKIP', expectedVersion: again.version })).ok).toBe(true);
+    expect((await a.until((x) => x.phase === 'choose')).phase).toBe('choose');
   });
 });

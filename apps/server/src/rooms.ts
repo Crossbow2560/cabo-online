@@ -508,7 +508,9 @@ export class RoomManager {
 
   private botAct(room: Room, botId: string, action: Action) {
     if (!room.game || room.rec.status !== 'playing' || !this.bots.has(botId)) return;
-    if (action.type === 'SNAP') {
+    if (action.type === 'SNAP' && room.game.state.phase.kind === 'snap' && room.game.state.phase.onlyFor) {
+      // Its own snap streak (R30): nothing to race, so it goes through the normal path below.
+    } else if (action.type === 'SNAP') {
       // Server-side, so its timing is exact: it snaps "now", into the window's batch.
       const b = room.snaps;
       if (b && b.windowId === action.windowId && !b.done.has(botId) && !room.resolvingSnaps) {
@@ -560,7 +562,9 @@ export class RoomManager {
       return;
     }
     const st = room.game!.state;
-    if (st.phase.kind === 'snap') {
+    // An open snap window gathers everyone's snaps to judge reaction times. A snap streak (R30)
+    // has one eligible player, so it's a plain timed window.
+    if (st.phase.kind === 'snap' && !st.phase.onlyFor) {
       if (room.snaps?.windowId !== st.phase.windowId) {
         room.snaps = {
           windowId: st.phase.windowId,
@@ -594,6 +598,11 @@ export class RoomManager {
   /** A player's snap: queued until the window's snaps are resolved together. */
   snap(sessionId: string, req: { windowId: number; ownerId: string; slot: number; reactionMs?: number }): void {
     const room = this.roomOf(sessionId);
+    // A snap streak (R30) has nobody to race: apply straight away (the engine checks it's theirs).
+    const ph = room?.game?.state.phase;
+    if (ph?.kind === 'snap' && ph.onlyFor && ph.windowId === req.windowId) {
+      return this.act(sessionId, { type: 'SNAP', playerId: sessionId, windowId: req.windowId, ownerId: req.ownerId, slot: req.slot });
+    }
     const b = room?.snaps;
     if (!room || !b || b.windowId !== req.windowId || room.resolvingSnaps) throw new GameError('Too slow — the snap window is closed');
     if (room.paused) throw new GameError('The game is paused');

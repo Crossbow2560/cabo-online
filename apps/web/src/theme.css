@@ -1363,3 +1363,6 @@ button.pcard:disabled { opacity: 1; }
 .code-card .code-input { width: 100%; }
 .code-card__go { width: 100%; }
 .code-card__hint { margin: 0; font-weight: 700; color: var(--leather); font-size: 14px; }
+
+/* ======== snap streak (R30): the first snapper's own window ======== */
+.snap-banner__done { margin-top: 4px; position: relative; z-index: 1; }

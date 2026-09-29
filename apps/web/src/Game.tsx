@@ -101,7 +101,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const mySnap = snapStatus && snapStatus.id === view.snapWindowId ? snapStatus.status : null;
   useEffect(() => {
     const id = view.snapWindowId;
-    if (id === null || spectator) return;
+    if (id === null || spectator || view.snapOnlyFor) return; // a streak isn't raced: no pass needed
     const left = view.snapMs - (performance.now() - snapWin.current.seenAt);
     const t = window.setTimeout(() => {
       setSnapStatus((s) => (s?.id === id ? s : { id, status: 'over' }));
@@ -125,7 +125,8 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
     const s = view.players.find((p) => p.id === ownerId)?.slots[slot];
     if (!s || spectator) return false;
     const mine = ownerId === me;
-    if (view.phase === 'snap') return mySnap === null;
+    // R30: in a snap streak only the first snapper may snap, and only their own cards.
+    if (view.phase === 'snap') return view.snapOnlyFor ? view.snapOnlyFor === me && mine && mySnap === null : mySnap === null;
     if (view.phase === 'give') return view.give?.snapperId === me && mine;
     if (!myTurn) return false;
     if (view.phase === 'choose') return pick === 'take_discard' && mine;
@@ -467,8 +468,12 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
           : <>Now tap another player's card to swap with your #{pick.blindMine + 1}</>;
       }
       return <>{ABILITY_TEXT[view.ability!]} — or skip</>;
-    case 'snap':
+    case 'snap': {
+      const rank = view.discardTop ? view.discardTop.rank : '';
+      if (view.snapOnlyFor === me) return <>You snapped first! Snap another {rank} of yours, or press Done.</>;
+      if (view.snapOnlyFor) return <>{name(view.snapOnlyFor)} snapped first and may snap more {rank}s</>;
       return <>Discarded {view.discardTop ? cardLabel(view.discardTop) : ''} — snap a match! Wrong guesses cost a card.</>;
+    }
     case 'give':
       return view.give!.snapperId === me
         ? <>You snapped {name(view.give!.targetId)}'s card — tap one of yours to give them, or skip</>
