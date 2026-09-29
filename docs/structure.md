@@ -29,7 +29,7 @@
 │           ├── App.tsx          screen state machine, session bootstrap, socket wiring
 │           ├── Game.tsx         the table: seating, tap handling, prompt, piles, results
 │           ├── theme.css        palette tokens, components, responsive layout, animations
-│           ├── screens/         Landing, Nickname, Rooms, Lobby
+│           ├── screens/         Landing, Nickname, Rooms (create / join / spectate tiles + the room-code page), Lobby
 │           ├── components/      PlayingCard, Hand, Seat, ActionBar, EventFeed, PlayersCard,
 │           │                    RoundResults, RulesModal, ConfirmDialog, CopyField,
 │           │                    DesertBackdrop, Title, Icon
