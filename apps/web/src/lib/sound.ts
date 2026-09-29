@@ -145,4 +145,6 @@ export function playSound(name: SoundName, { delay = 0, volume = 1 }: { delay?: 
   g.gain.value = volume;
   src.connect(g).connect(gameGain);
   src.start(ctx.currentTime + Math.max(0, delay) / 1000);
+  // Lets tests (and curious devtools users) see which sound played when.
+  window.dispatchEvent(new CustomEvent('cabo:sound', { detail: { name, file, delay } }));
 }
