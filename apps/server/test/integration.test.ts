@@ -584,6 +584,10 @@ describe('pause and end game', () => {
     const cur = bots.find((b) => b.id === v.currentPlayerId)!;
     await cur.emit('game:action', { type: 'DRAW_STOCK' });
     await cur.emit('game:action', { type: 'DISCARD_DRAWN' });
+    // A discarded 7–K brings its ability first; skip it to reach the snap window.
+    if (cur.view!.phase === 'ability' || (await cur.until((x) => x.phase !== 'drawn')).phase === 'ability') {
+      await cur.emit('game:action', { type: 'SKIP' });
+    }
     await cur.until((x) => x.phase === 'snap');
     for (const b of bots) expect(await b.emit('room:pause')).toMatchObject({ ok: false, error: 'Wait for the snap window to close' });
   });
