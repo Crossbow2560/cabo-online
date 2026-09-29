@@ -66,6 +66,20 @@ The speaker button (in the table's top bar between pause and **?**, and in the l
 - **Music:** a background tune loops in the lobby and at the table, carrying on seamlessly when the game starts. The **Music** slider sets its volume (0 turns it off). It pauses while the tab is in the background and stops when you leave the room.
 - Browsers only allow sound after you've tapped or pressed a key on the page, so the first few moments may be silent. Sounds are skipped while the tab is in the background.
 
+## Game settings (lobby ⚙)
+
+The ⚙ button in the lobby's top-right corner opens the game settings; a one-line summary sits above **Start game**. Only the host can change them (between rounds), and everyone can see them. They're saved with the room.
+
+| Setting | Range | Default |
+|---|---|---|
+| **Max points**: a player whose running total reaches it at the end of a round loses, and the game is over (lowest total wins). Can be turned off. | 30 to 500 | 100 |
+| **Think time**: a whole turn | 15s to 120s | 60s |
+| **Snap time**: a snap window | 2s to 8s | 3.5s |
+| **Special card time**: a 7-K power, or giving a card after a snap | 5s to 30s | 15s |
+| **Memorise time**: looking at your two cards at the start of a round | 10s to 60s | 20s |
+
+When someone reaches the limit, the round results say so and the host gets **See final standings** instead of **Start next round**; the final standings mark who busted.
+
 ## Pausing and ending a game
 
 - **Pause (❚❚ in the top bar):** anyone can pause a round, and anyone can press **Resume**. While paused, the turn timers stop, bots wait, and no moves are accepted. On resume, everyone gets back exactly the time they had left. You can't pause during a 3.5s snap window: each player's window runs on their own screen, so it can't be frozen fairly.

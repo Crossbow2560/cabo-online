@@ -60,7 +60,19 @@ export function RoundResults({ view, room, onStart, onEnd }: {
           </li>
         ))}
       </ul>
-      {isHost ? (
+      {room.limitHit.length > 0 && (
+        <p className="results__limit" role="status">
+          {room.limitHit.map(name).join(' & ')} reached {room.settings.maxPoints} points. Game over!
+        </p>
+      )}
+      {isHost && room.limitHit.length > 0 ? (
+        // The points limit was reached: no more rounds, only the final standings.
+        <div className="results__actions">
+          <button className="btn btn--primary" onClick={onEnd}>See final standings</button>
+        </div>
+      ) : room.limitHit.length > 0 ? (
+        <p className="results__wait">Waiting for the host to show the final standings…</p>
+      ) : isHost ? (
         <div className="results__actions">
           <button className="btn btn--primary" onClick={onStart} disabled={room.players.length < 2}>
             {room.players.length < 2 ? 'Need 2 players' : 'Start next round'}

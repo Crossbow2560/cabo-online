@@ -52,6 +52,9 @@ There are no accounts; a nickname returns a random token, and the server stores 
 ## Spectators get a seatless redacted view
 A spectator is not a player: they're tracked per room in memory (`Room.spectators`) and sent `redactFor(state, spectatorId)`. Because that id owns no seat, the view has no own cards, no peek phase cards and no drawn card, so watching can't leak anything, including to a friend at the table. Private events are addressed to players only, so spectators get public events via the room channel.
 
+## Game settings live with the room in Postgres
+The lobby ⚙ settings (points limit, timers) are part of the room record and saved in `rooms.settings` (jsonb, migration 0003), so they survive a server restart like everything else about the room. Rooms without settings (older rows) get the defaults. Timers are copied into each round's `GameState.timings` when it's dealt, so a round in progress keeps the timings it started with. The animation-bound pauses (R31) aren't configurable, since they must match the client's animations.
+
 ## Pause and end game
 - **Pause** lives on the server's room (`Room.paused`), not in the engine: it only stops the room's timer and bots, and on resume shifts the current deadline (and the peek hold) by the paused time. It isn't persisted, so a server restart resumes play. Snap windows can't be paused, because each client times its own.
 - **End game** keeps the room and its players: the final standings are sent once in `RoomState.final`, then totals and the round count reset for a new game.

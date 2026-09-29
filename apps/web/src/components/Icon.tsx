@@ -1,5 +1,6 @@
 import binoculars from '../assets/icons/binoculars.svg?raw';
 import cactus from '../assets/icons/cactus.svg?raw';
+import cog from '../assets/icons/cog.svg?raw';
 import lawStar from '../assets/icons/law-star.svg?raw';
 import pauseButton from '../assets/icons/pause-button.svg?raw';
 import saloon from '../assets/icons/saloon.svg?raw';
@@ -12,6 +13,7 @@ import westernHat from '../assets/icons/western-hat.svg?raw';
 const ICONS = {
   binoculars,
   cactus,
+  cog,
   'law-star': lawStar,
   'pause-button': pauseButton,
   saloon,

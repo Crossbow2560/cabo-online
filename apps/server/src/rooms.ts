@@ -4,6 +4,10 @@ import {
   BOT_LEVELS,
   type BotLevel,
   type FinalStandings,
+  type GameSettings,
+  DEFAULT_MAX_POINTS,
+  DEFAULT_TIMINGS,
+  SETTING_LIMITS,
   createGame,
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -70,6 +74,10 @@ interface SnapBatch {
 
 export class Room {
   connected = new Set<string>();
+  /** Lobby ⚙ settings, stored with the room (rooms.settings in Postgres). */
+  get settings(): GameSettings {
+    return this.rec.settings!;
+  }
   /** Watching without a seat: sessionId → nickname. In memory only. */
   spectators = new Map<string, string>();
   /** Mid-round pause (not persisted: a restart resumes play). */
@@ -113,7 +121,16 @@ export class Room {
       spectators: [...this.spectators].map(([id, name]) => ({ id, name })),
       paused: this.paused ? { byId: this.paused.byId, byName: this.paused.byName } : null,
       final: this.final,
+      settings: this.settings,
+      limitHit: this.limitHit(),
     };
+  }
+
+  /** Between rounds: whoever's total has reached the points limit (they lose; the game is over). */
+  limitHit(): string[] {
+    const max = this.settings.maxPoints;
+    if (max === null || this.rec.status !== 'finished') return [];
+    return this.rec.players.filter((p) => p.totalScore >= max).map((p) => p.sessionId);
   }
 
   /** Writes are chained per room so snapshots land in order; failures are logged, not fatal. */
@@ -151,11 +168,50 @@ export class RoomManager {
     /** Multiplies bot "thinking" delays (tests use a tiny value). */
     private botPace = 1,
     private snapGraceMs = DEFAULT_SNAP_GRACE_MS,
+    /** New rooms' points limit (null = none). */
+    private defaultMaxPoints: number | null = DEFAULT_MAX_POINTS,
   ) {}
+
+  /** A new room's settings: the server's timings, the default points limit. */
+  private defaultSettings(): GameSettings {
+    const t = { ...DEFAULT_TIMINGS, ...this.timings };
+    return { maxPoints: this.defaultMaxPoints, peekMs: t.peekMs, turnMs: t.turnMs, choiceMs: t.choiceMs, snapMs: t.snapMs };
+  }
+
+  /** Host only, not mid-round: change any of the lobby ⚙ settings. */
+  async setSettings(hostId: string, patch: Partial<GameSettings>): Promise<void> {
+    const room = this.roomOf(hostId);
+    if (!room) throw new GameError('Not in a room');
+    if (room.rec.hostId !== hostId) throw new GameError('Only the host can change the settings');
+    if (room.rec.status === 'playing') throw new GameError('Wait for the round to end');
+    const next = { ...room.settings };
+    for (const key of Object.keys(SETTING_LIMITS) as (keyof typeof SETTING_LIMITS)[]) {
+      if (!(key in patch)) continue;
+      const v = patch[key];
+      if (key === 'maxPoints' && v === null) {
+        next.maxPoints = null;
+        continue;
+      }
+      const { min, max, step } = SETTING_LIMITS[key];
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < min || v > max || (v - min) % step !== 0) {
+        throw new GameError(`Bad value for ${key}`);
+      }
+      next[key] = v;
+    }
+    room.rec.settings = next;
+    await room.persist(this.store, 'room');
+    this.broadcastRoom(room);
+  }
 
   roomOf(sessionId: string): Room | null {
     const code = this.bySession.get(sessionId);
     return code ? this.rooms.get(code) ?? null : null;
+  }
+
+  /** Wrap a room record; rooms saved without settings (older rows) get the defaults. */
+  private newRoom(rec: RoomRecord): Room {
+    rec.settings = rec.settings ? { ...this.defaultSettings(), ...rec.settings } : this.defaultSettings();
+    return new Room(rec);
   }
 
   /** The room a session is watching (not seated in). */
@@ -210,7 +266,7 @@ export class RoomManager {
     let code: string;
     do code = Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
     while (this.rooms.has(code));
-    const room = new Room({
+    const room = this.newRoom({
       id: randomUUID(),
       code,
       hostId: session.id,
@@ -350,6 +406,7 @@ export class RoomManager {
     if (!room) throw new GameError('Not in a room');
     if (room.rec.hostId !== sessionId) throw new GameError('Only the host can start');
     if (room.rec.status === 'playing') throw new GameError('Already playing');
+    if (room.limitHit().length) throw new GameError('Game over: someone reached the points limit. End the game to see the final standings');
     const n = room.rec.players.length;
     if (n < MIN_PLAYERS) throw new GameError(`Need at least ${MIN_PLAYERS} players`);
     // R1: dealer rotates left each round.
@@ -369,7 +426,7 @@ export class RoomManager {
         seed: this.fixedSeed ?? randomInt(2 ** 31),
         dealerIndex: room.rec.dealerIndex,
         now: Date.now(),
-        timings: this.timings,
+        timings: { ...this.timings, peekMs: room.settings.peekMs, turnMs: room.settings.turnMs, choiceMs: room.settings.choiceMs, snapMs: room.settings.snapMs },
       }),
     };
     this.out.log(`r:${room.rec.code}`, { text: `Round ${room.rec.roundNo} dealt. Memorise your two nearest cards, then press Ready.` });
@@ -431,7 +488,14 @@ export class RoomManager {
       .map((p) => ({ id: p.sessionId, name: p.name, total: p.totalScore }))
       .sort((a, b) => a.total - b.total);
     const best = standings[0]?.total;
-    room.final = { standings, winners: standings.filter((s) => s.total === best).map((s) => s.id), rounds: room.rec.roundNo };
+    const losers = room.limitHit();
+    room.final = {
+      standings,
+      winners: standings.filter((s) => s.total === best).map((s) => s.id),
+      rounds: room.rec.roundNo,
+      losers,
+      reason: losers.length ? 'limit' : 'host',
+    };
     room.rec.status = 'lobby';
     room.rec.roundNo = 0;
     room.rec.dealerIndex = 0;
@@ -462,6 +526,11 @@ export class RoomManager {
       room.rec.status = 'finished';
       room.paused = null;
       what = 'both';
+      const hit = room.limitHit();
+      if (hit.length) {
+        const names = room.rec.players.filter((p) => hit.includes(p.sessionId)).map((p) => p.name).join(' & ');
+        this.out.log(`r:${room.rec.code}`, { text: `${names} reached ${room.settings.maxPoints} points. Game over!` });
+      }
     }
     void room.persist(this.store, what);
     this.afterChange(room);
@@ -727,7 +796,7 @@ export class RoomManager {
     const rows = await this.store.loadOpenRooms();
     const now = Date.now();
     for (const { room: rec, game } of rows) {
-      const room = new Room(rec);
+      const room = this.newRoom(rec);
       if (game && rec.status !== 'lobby') {
         room.game = game;
         // Give everyone time to reconnect before timers resume.

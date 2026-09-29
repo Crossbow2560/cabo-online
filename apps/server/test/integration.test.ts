@@ -18,7 +18,7 @@ afterEach(async () => {
 async function start(
   store: Store = new MemoryStore(),
   kickAfterMs?: number,
-  extra: { timings?: object; peekHoldMs?: number; botPace?: number; snapGraceMs?: number } = {},
+  extra: { timings?: object; peekHoldMs?: number; botPace?: number; snapGraceMs?: number; defaultMaxPoints?: number | null } = {},
 ) {
   const server = await createCaboServer({
     store,
@@ -28,6 +28,8 @@ async function start(
     botPace: extra.botPace ?? 0.005,
     // Test clients mostly don't send "no snap" passes; don't make every window wait long for them.
     snapGraceMs: extra.snapGraceMs ?? 30,
+    // Multi-round tests shouldn't trip the points limit; the settings tests set one explicitly.
+    defaultMaxPoints: extra.defaultMaxPoints === undefined ? null : extra.defaultMaxPoints,
   });
   const port = await server.listen(0);
   servers.push(server);
@@ -764,4 +766,61 @@ describe('snap streak (R30)', () => {
     expect((await a.emit('game:action', { type: 'SKIP', expectedVersion: again.version })).ok).toBe(true);
     expect((await a.until((x) => x.phase === 'choose')).phase).toBe('choose');
   });
+});
+
+describe('game settings', () => {
+  it('only the host changes them, never mid-round, within limits; a new round uses them', async () => {
+    const { url, server } = await start(new MemoryStore(), undefined, { defaultMaxPoints: 100 });
+    const { bots: [host, guest], code } = await lobby(url, 2);
+    const room = () => server.rooms.rooms.get(code)!;
+    expect(room().settings.maxPoints).toBe(100);
+    expect(await guest.emit('room:settings', { snapMs: 2_500 })).toMatchObject({ ok: false, error: 'Only the host can change the settings' });
+    expect(await host.emit('room:settings', { snapMs: 1_000 })).toMatchObject({ ok: false, error: 'Bad value for snapMs' });
+    expect(await host.emit('room:settings', { turnMs: 17_000 })).toMatchObject({ ok: false }); // not on the 5s step
+    const seen = new Promise<import('@cabo/engine').RoomState>((res) => {
+      const on = (r: import('@cabo/engine').RoomState) => r?.settings.snapMs === 2_000 && (guest.socket.off('room:state', on), res(r));
+      guest.socket.on('room:state', on);
+    });
+    expect((await host.emit('room:settings', { snapMs: 2_000, turnMs: 30_000, maxPoints: null })).ok).toBe(true);
+    expect((await seen).settings).toMatchObject({ snapMs: 2_000, turnMs: 30_000, maxPoints: null });
+
+    await startAndReady([host, guest]);
+    expect(room().game!.state.timings).toMatchObject({ snapMs: 2_000, turnMs: 30_000 });
+    expect(await host.emit('room:settings', { snapMs: 3_000 })).toMatchObject({ ok: false, error: 'Wait for the round to end' });
+  });
+
+  it('settings are saved with the room and survive a server restart', async () => {
+    const store = new MemoryStore();
+    const first = await start(store, undefined, { defaultMaxPoints: 100 });
+    const { bots: [host], code } = await lobby(first.url, 1);
+    expect((await host.emit('room:settings', { maxPoints: 150, turnMs: 30_000, snapMs: 5_000 })).ok).toBe(true);
+    await new Promise((r) => setTimeout(r, 100)); // let the save land
+    host.socket.disconnect();
+    await first.server.close();
+
+    const second = await start(store, undefined, { defaultMaxPoints: 100 });
+    expect(second.server.rooms.rooms.get(code)!.settings).toMatchObject({ maxPoints: 150, turnMs: 30_000, snapMs: 5_000 });
+  });
+
+  it('reaching the points limit ends the game: no next round, final standings name the loser', async () => {
+    const { url, server } = await start(new MemoryStore(), undefined, { defaultMaxPoints: 100 });
+    const { bots: [host, guest], code } = await lobby(url, 2);
+    await host.emit('room:settings', { maxPoints: 30 });
+    const v = await startAndReady([host, guest]);
+    const cur = [host, guest].find((b) => b.id === v.currentPlayerId)!;
+    await cur.emit('game:action', { type: 'CALL_CABO', expectedVersion: v.version });
+    await host.until((x) => x.phase === 'ended', 15_000);
+    // Rig the totals: the guest is over the limit.
+    const room = server.rooms.rooms.get(code)!;
+    for (const p of room.rec.players) p.totalScore = p.sessionId === guest.id ? 31 : 12;
+    expect(room.limitHit()).toEqual([guest.id]);
+    expect(await host.emit('room:start')).toMatchObject({ ok: false, error: expect.stringMatching(/^Game over/) });
+
+    const final = new Promise<import('@cabo/engine').RoomState>((res) => {
+      const on = (r: import('@cabo/engine').RoomState) => r?.final && (guest.socket.off('room:state', on), res(r));
+      guest.socket.on('room:state', on);
+    });
+    expect((await host.emit('room:end')).ok).toBe(true);
+    expect((await final).final).toMatchObject({ reason: 'limit', losers: [guest.id], winners: [host.id] });
+  }, 30_000);
 });

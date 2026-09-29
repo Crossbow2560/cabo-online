@@ -33,11 +33,40 @@ export interface RoomPlayerInfo {
   totalScore: number;
 }
 
-/** Shown to everyone when the host ends the game: players by final total, lowest first. */
+/** Host-chosen game settings (lobby ⚙). Times in ms. */
+export interface GameSettings {
+  /** A player whose running total reaches this at the end of a round loses; the game is over. null = no limit. */
+  maxPoints: number | null;
+  /** Memorise time at the start of a round. */
+  peekMs: number;
+  /** Time for a whole turn ("think time"). */
+  turnMs: number;
+  /** Time for a special card's choice, or to give a card after snapping. */
+  choiceMs: number;
+  /** Snap window. */
+  snapMs: number;
+}
+
+/** Allowed values for each setting (min, max, step). */
+export const SETTING_LIMITS = {
+  maxPoints: { min: 30, max: 500, step: 10 },
+  peekMs: { min: 10_000, max: 60_000, step: 5_000 },
+  turnMs: { min: 15_000, max: 120_000, step: 5_000 },
+  choiceMs: { min: 5_000, max: 30_000, step: 1_000 },
+  snapMs: { min: 2_000, max: 8_000, step: 500 },
+} as const;
+
+export const DEFAULT_MAX_POINTS = 100;
+
+/** Shown to everyone when the game ends: players by final total, lowest first. */
 export interface FinalStandings {
   standings: { id: string; name: string; total: number }[];
   winners: string[];
   rounds: number;
+  /** Players who reached the points limit (the game ended because of them). */
+  losers: string[];
+  /** `limit`: someone reached the points limit; `host`: the host ended it. */
+  reason: 'limit' | 'host';
 }
 
 export interface RoomState {
@@ -47,6 +76,9 @@ export interface RoomState {
   roundNo: number;
   kickAfterMs: number;
   players: RoomPlayerInfo[];
+  settings: GameSettings;
+  /** Between rounds: players whose total has reached the points limit. Non-empty = game over. */
+  limitHit: string[];
   /** People watching without a seat. They get the public view only (every hand face-down). */
   spectators: { id: string; name: string }[];
   /** Mid-round pause: timers and bots are frozen and no moves are accepted until someone resumes. */
@@ -74,6 +106,8 @@ export interface ClientToServer {
   'room:start': (ack: (r: Ack) => void) => void;
   /** Host only, between rounds: finish the game, show final standings, back to the lobby. */
   'room:end': (ack: (r: Ack) => void) => void;
+  /** Host only, not mid-round. Any subset of the settings; values outside SETTING_LIMITS are refused. */
+  'room:settings': (req: Partial<GameSettings>, ack: (r: Ack) => void) => void;
   /** Anyone seated, mid-round (not during a snap window). */
   'room:pause': (ack: (r: Ack) => void) => void;
   'room:resume': (ack: (r: Ack) => void) => void;

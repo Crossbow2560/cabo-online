@@ -40,7 +40,7 @@
 │       └── public/music/        background.mp3 (looped in the lobby and at the table), see CREDITS.txt
 │       └── public/              logo.svg (the card back: the game's logo and favicon), favicon-32.png, apple-touch-icon.png
 ├── tools/browser-bot.js         in-page bot that joins a room and plays via the UI (docs/bots.md)
-├── supabase/migrations/         0001_init.sql (schema + RLS), 0002_fk_indexes.sql
+├── supabase/migrations/         0001_init.sql (schema + RLS), 0002_fk_indexes.sql, 0003_room_settings.sql (rooms.settings)
 ├── .github/workflows/deploy.yml test on GitHub runner, deploy on self-hosted runner
 ├── Dockerfile                   multi-stage: build web, run server with tsx
 ├── docker-compose.yml           single service, port 3101, env from apps/server/.env

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type RoomState } from '@cabo/engine';
+import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type GameSettings, type RoomState } from '@cabo/engine';
 import { CopyField } from '../components/CopyField';
 import { FinalResults } from '../components/FinalResults';
 import { SoundControl } from '../components/SoundControl';
+import { GameSettingsDialog, settingsSummary } from '../components/GameSettings';
 import { useMusic } from '../lib/sound';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
@@ -18,13 +19,15 @@ const LEVEL_INFO: Record<BotLevel, { label: string; hint: string }> = {
   expert: { label: 'Expert', hint: "Quick · You ain't leavin' the table"},
 };
 
-export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, watching = false }: {
+export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSettings, watching = false }: {
   room: RoomState;
   me: string;
   onStart: () => void;
   onLeave: () => void;
   onAddBot: (level: BotLevel) => void;
   onRemoveBot: (id: string) => void;
+  /** Host: save the lobby ⚙ settings. */
+  onSettings: (s: GameSettings) => void;
   /** Watching without a seat. */
   watching?: boolean;
 }) {
@@ -46,6 +49,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, watch
   const finalKey = room.final ? room.final.standings.map((s) => `${s.id}:${s.total}`).join(',') + `/${room.final.rounds}` : null;
   const [dismissedFinal, setDismissedFinal] = useState<string | null>(null);
   useMusic(); // music starts in the lobby and carries on at the table
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close the level menu on an outside click or Escape.
@@ -72,8 +76,14 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, watch
   return (
     <main className="screen screen--top">
       <div className="corner-controls">
+        <button className="btn btn--light btn--sm tbar__icon" onClick={() => setSettingsOpen(true)} aria-label="Game settings" title="Game settings">
+          <Icon name="cog" className="tbar__svg" />
+        </button>
         <SoundControl />
       </div>
+      {settingsOpen && (
+        <GameSettingsDialog settings={room.settings} canEdit={isHost} onSave={onSettings} onClose={() => setSettingsOpen(false)} />
+      )}
       {room.final && finalKey !== dismissedFinal && (
         <FinalResults final={room.final} me={me} onClose={() => setDismissedFinal(finalKey)} />
       )}
@@ -190,6 +200,9 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, watch
       </section>
 
       <div className="lobby__start stack">
+        <button className="lobby__settings" onClick={() => setSettingsOpen(true)}>
+          ⚙ {settingsSummary(room.settings)}
+        </button>
         {isHost ? (
           <>
             <button className="btn btn--primary btn--lg" onClick={onStart} disabled={!enough}>

@@ -52,6 +52,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `room:spectate` | `{ code }` | `{ ok, code }` | Watch a room without a seat, at any stage (max 20 watchers). The watcher gets `room:state` and a `game:view` with no seat (every card face-down until the reveal) and public log events only. Not allowed while seated somewhere. `room:join` in the lobby turns a watcher into a player. |
 | `room:leave` | none | `{ ok }` | Mid-round this forfeits: your cards go back to the stock, and if one player remains they win. |
 | `room:start` | none | `{ ok }` | Host only, 2+ players. Starts round 1 or the next round; the dealer rotates left. |
+| `room:settings` | any of `{ maxPoints, peekMs, turnMs, choiceMs, snapMs }` | `{ ok }` | Host only, not mid-round. Values must be within `SETTING_LIMITS` and on their step (`maxPoints` may be `null` = no limit); otherwise `Bad value for <key>`. Saved in `rooms.settings`; the next round uses the timers. |
 | `room:end` | none | `{ ok }` | Host only, between rounds (`Finish the round first` otherwise). Sets `RoomState.final`, resets totals and round number, back to `lobby`; everyone's `game:view` becomes `null`. |
 | `room:pause` | none | `{ ok }` | Anyone seated, mid-round. Freezes timers and bots; moves and snaps get `The game is paused`. Refused during a snap window (`Wait for the snap window to close`). |
 | `room:resume` | none | `{ ok }` | Anyone seated. Deadlines move later by the time spent paused. |
@@ -100,8 +101,10 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 - `kickAfterMs`
 - `players[]`: `{ id, name, connected, bot, botLevel, offlineSince, totalScore }` (`botLevel` is `null` for humans)
 - `spectators`: `{ id, name }[]`
+- `settings`: `{ maxPoints, peekMs, turnMs, choiceMs, snapMs }` (the lobby ⚙ settings)
+- `limitHit`: between rounds, the players whose total has reached `maxPoints` (non-empty = game over; `room:start` is refused)
 - `paused`: `{ byId, byName } | null`
-- `final`: `{ standings: { id, name, total }[], winners, rounds } | null`, the last game's final totals (lowest first), until the next deal
+- `final`: `{ standings: { id, name, total }[], winners, rounds, losers, reason: 'limit' | 'host' } | null`, the last game's final totals (lowest first), until the next deal
 
 **`PlayerView`** (key fields):
 - `you`, `version`, `phase`, `currentPlayerId`, `dealerId`

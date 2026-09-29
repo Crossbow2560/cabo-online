@@ -238,6 +238,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           onLeave={leave}
           onAddBot={(level) => call((ack) => socket.emit('room:addBot', { level }, ack))}
           onRemoveBot={(id) => call((ack) => socket.emit('room:removeBot', { id }, ack))}
+          onSettings={(s) => call((ack) => socket.emit('room:settings', s, ack))}
           watching={watching}
         />
       ) : view ? (

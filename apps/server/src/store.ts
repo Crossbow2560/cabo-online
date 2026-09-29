@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { BOT_LEVELS, type BotLevel, type GameState } from '@cabo/engine';
+import { BOT_LEVELS, type BotLevel, type GameSettings, type GameState } from '@cabo/engine';
 
 export interface SessionRecord {
   id: string;
@@ -16,6 +16,8 @@ export interface RoomRecord {
   roundNo: number;
   dealerIndex: number;
   players: { sessionId: string; name: string; totalScore: number; bot?: boolean; botLevel?: BotLevel }[];
+  /** Lobby ⚙ settings (rooms.settings). Missing on older rows: the room manager fills in defaults. */
+  settings?: GameSettings | null;
 }
 
 export interface GameRecord {
@@ -82,11 +84,13 @@ export class PgStore implements Store {
   async saveRoom(room: RoomRecord) {
     await this.sql.begin(async (tx) => {
       await tx`
-        insert into rooms (id, code, host_session_id, status, round_no, dealer_index)
-        values (${room.id}, ${room.code}, ${room.hostId}, ${room.status}, ${room.roundNo}, ${room.dealerIndex})
+        insert into rooms (id, code, host_session_id, status, round_no, dealer_index, settings)
+        values (${room.id}, ${room.code}, ${room.hostId}, ${room.status}, ${room.roundNo}, ${room.dealerIndex},
+                ${room.settings ? tx.json(room.settings as never) : null})
         on conflict (id) do update set
           host_session_id = excluded.host_session_id, status = excluded.status,
-          round_no = excluded.round_no, dealer_index = excluded.dealer_index, updated_at = now()`;
+          round_no = excluded.round_no, dealer_index = excluded.dealer_index, settings = excluded.settings,
+          updated_at = now()`;
       await tx`delete from room_players where room_id = ${room.id}`;
       for (const [seat, p] of room.players.entries()) {
         await tx`insert into room_players (room_id, session_id, seat, total_score)
@@ -108,8 +112,8 @@ export class PgStore implements Store {
 
   async loadOpenRooms() {
     const rooms = await this.sql<
-      { id: string; code: string; host_session_id: string; status: RoomStatus; round_no: number; dealer_index: number }[]
-    >`select id, code, host_session_id, status, round_no, dealer_index from rooms
+      { id: string; code: string; host_session_id: string; status: RoomStatus; round_no: number; dealer_index: number; settings: GameSettings | null }[]
+    >`select id, code, host_session_id, status, round_no, dealer_index, settings from rooms
       where status <> 'closed' and updated_at > now() - interval '1 day'`;
     const out: { room: RoomRecord; game: GameRecord | null }[] = [];
     for (const r of rooms) {
@@ -129,6 +133,7 @@ export class PgStore implements Store {
           roundNo: r.round_no,
           dealerIndex: r.dealer_index,
           players: players.map((p) => ({ sessionId: p.session_id, name: p.nickname, totalScore: p.total_score, ...botFields(p.token_hash) })),
+          settings: r.settings,
         },
         game: games[0] ? { id: games[0].id, roomId: r.id, roundNo: games[0].round_no, state: games[0].state_snapshot } : null,
       });

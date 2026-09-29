@@ -17,7 +17,10 @@ export function FinalResults({ final, me, onClose }: { final: FinalStandings; me
           🏆 {winners.join(' & ')} {winners.length > 1 ? 'win' : 'wins'} the game!
         </h2>
         <p className="final__why">
-          Final totals after {final.rounds} round{final.rounds === 1 ? '' : 's'} — lowest wins.
+          {final.reason === 'limit'
+            ? `${final.standings.filter((s) => final.losers.includes(s.id)).map((s) => s.name).join(' & ')} reached the points limit. `
+            : ''}
+          Final totals after {final.rounds} round{final.rounds === 1 ? '' : 's'}, lowest wins.
         </p>
         <ol className="final__list">
           {final.standings.map((s, i) => (
@@ -26,6 +29,7 @@ export function FinalResults({ final, me, onClose }: { final: FinalStandings; me
               <span className="final__name">
                 {s.name}
                 {s.id === me && <span className="you-tag">(you)</span>}
+                {final.losers.includes(s.id) && <span className="final__bust">Busted</span>}
               </span>
               <span className="final__total">{s.total}</span>
             </li>

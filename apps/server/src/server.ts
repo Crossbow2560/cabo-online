@@ -47,6 +47,8 @@ export interface ServerOptions {
   botPace?: number;
   /** How long past a snap window to wait for slow clients' snaps (default 1.5s). */
   snapGraceMs?: number;
+  /** New rooms' points limit (default 100; null = none). */
+  defaultMaxPoints?: number | null;
   /** R28: max snaps per socket per second. */
   snapRateLimit?: number;
   webDist?: string;
@@ -80,6 +82,7 @@ export async function createCaboServer(opts: ServerOptions) {
     opts.peekHoldMs,
     opts.botPace,
     opts.snapGraceMs,
+    opts.defaultMaxPoints === undefined ? undefined : opts.defaultMaxPoints,
   );
   const restored = await rooms.restore();
   if (restored) console.log(`restored ${restored} room(s)`);
@@ -217,6 +220,10 @@ export async function createCaboServer(opts: ServerOptions) {
 
     socket.on('room:start', handle(() => rooms.start(sid)) as never);
     socket.on('room:end', handle(() => rooms.end(sid)) as never);
+    socket.on('room:settings', handle((req: Record<string, unknown>) => {
+      if (!req || typeof req !== 'object') throw new GameError('Bad settings');
+      return rooms.setSettings(sid, req as never);
+    }) as never);
     socket.on('room:pause', handle(() => rooms.pause(sid)) as never);
     socket.on('room:resume', handle(() => rooms.resume(sid)) as never);
 

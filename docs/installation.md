@@ -28,7 +28,7 @@
 
 3. Database (only when using `DATABASE_URL`). Apply the migrations once, in the Supabase SQL editor or with the CLI:
    ```bash
-   psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_fk_indexes.sql
+   psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_fk_indexes.sql -f supabase/migrations/0003_room_settings.sql
    ```
 4. Run it in two terminals:
    ```bash

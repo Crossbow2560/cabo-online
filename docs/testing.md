@@ -72,6 +72,10 @@ These start a real server on a random port (`createCaboServer` with short timing
   - can watch mid-round with a view that has no cards (not even a drawn one), and can't act, pause or join mid-round;
   - appear in the room state, keep watching across a reconnect, and become a player by joining the lobby;
   - are told the room is gone when they stop watching or it closes.
+- **Game settings:**
+  - only the host changes them, never mid-round, only within the allowed values; the next round uses the timers;
+  - they're saved with the room and survive a restart;
+  - reaching the points limit blocks the next round, and the final standings name the loser.
 - **Persistence:** a round in progress survives a server restart, with both `MemoryStore` and (when `TEST_DATABASE_URL` is set) `PgStore`.
 
 ## What isn't automated

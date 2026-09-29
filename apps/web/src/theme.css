@@ -1385,3 +1385,29 @@ button.pcard:disabled { opacity: 1; }
     --card-sm: calc(var(--card-lg) * 0.65);
   }
 }
+
+/* ======== lobby ⚙ game settings ======== */
+.corner-controls { display: flex; gap: 8px; }
+.lobby__settings {
+  border: 0; background: transparent; cursor: pointer; font: inherit; font-weight: 800; font-size: 14px;
+  color: var(--cream); text-shadow: 0 1px 0 var(--saddle-deep); text-align: center; text-wrap: balance; padding: 2px 8px;
+}
+.lobby__settings:hover { text-decoration: underline; }
+.game-settings { display: grid; gap: 12px; width: 100%; }
+.game-settings__title { text-align: center; }
+.game-settings__note { margin: 0; text-align: center; font-weight: 700; color: var(--leather); }
+.game-settings__group { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
+.game-settings__group legend { font-family: var(--font-display); font-size: 18px; color: var(--saddle); margin-bottom: 4px; }
+.game-settings__toggle { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 14px; }
+.game-settings__toggle input { accent-color: var(--saddle); width: 18px; height: 18px; }
+.game-settings__row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 3.2em; align-items: center; gap: 10px; }
+.game-settings__row--off { opacity: 0.5; }
+.game-settings__label { font-weight: 800; display: grid; line-height: 1.2; }
+.game-settings__label small { font-size: 11px; font-weight: 700; color: var(--leather); }
+.game-settings__row input[type='range'] { width: 100%; accent-color: var(--saddle); }
+.game-settings__value { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; }
+.results__limit { margin: 0; font-weight: 800; color: var(--rust); }
+.final__bust {
+  margin-left: 8px; padding: 1px 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--cream); background: var(--rust); border-radius: 999px; vertical-align: middle;
+}
