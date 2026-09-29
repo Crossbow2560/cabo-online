@@ -15,7 +15,7 @@ export interface RoomRecord {
   status: RoomStatus;
   roundNo: number;
   dealerIndex: number;
-  players: { sessionId: string; name: string; totalScore: number }[];
+  players: { sessionId: string; name: string; totalScore: number; bot?: boolean }[];
 }
 
 export interface GameRecord {
@@ -113,8 +113,9 @@ export class PgStore implements Store {
       where status <> 'closed' and updated_at > now() - interval '1 day'`;
     const out: { room: RoomRecord; game: GameRecord | null }[] = [];
     for (const r of rooms) {
-      const players = await this.sql<{ session_id: string; nickname: string; total_score: number }[]>`
-        select rp.session_id, s.nickname, rp.total_score from room_players rp
+      // Bot sessions are marked by a `bot:` token hash (see RoomManager.addBot).
+      const players = await this.sql<{ session_id: string; nickname: string; total_score: number; bot: boolean }[]>`
+        select rp.session_id, s.nickname, rp.total_score, s.token_hash like 'bot:%' as bot from room_players rp
         join guest_sessions s on s.id = rp.session_id
         where rp.room_id = ${r.id} order by rp.seat`;
       const games = await this.sql<{ id: string; round_no: number; state_snapshot: GameState }[]>`
@@ -127,7 +128,7 @@ export class PgStore implements Store {
           status: r.status,
           roundNo: r.round_no,
           dealerIndex: r.dealer_index,
-          players: players.map((p) => ({ sessionId: p.session_id, name: p.nickname, totalScore: p.total_score })),
+          players: players.map((p) => ({ sessionId: p.session_id, name: p.nickname, totalScore: p.total_score, bot: p.bot })),
         },
         game: games[0] ? { id: games[0].id, roomId: r.id, roundNo: games[0].round_no, state: games[0].state_snapshot } : null,
       });

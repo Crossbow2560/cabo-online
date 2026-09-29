@@ -15,8 +15,14 @@ afterEach(async () => {
   for (const s of servers.splice(0)) await s.close();
 });
 
-async function start(store: Store = new MemoryStore(), kickAfterMs?: number, extra: { timings?: object; peekHoldMs?: number } = {}) {
-  const server = await createCaboServer({ store, timings: { ...TIMINGS, ...extra.timings }, kickAfterMs, peekHoldMs: extra.peekHoldMs });
+async function start(store: Store = new MemoryStore(), kickAfterMs?: number, extra: { timings?: object; peekHoldMs?: number; botPace?: number } = {}) {
+  const server = await createCaboServer({
+    store,
+    timings: { ...TIMINGS, ...extra.timings },
+    kickAfterMs,
+    peekHoldMs: extra.peekHoldMs,
+    botPace: extra.botPace ?? 0.005,
+  });
   const port = await server.listen(0);
   servers.push(server);
   return { server, port, url: `http://localhost:${port}` };
@@ -358,5 +364,87 @@ describe('server', () => {
     expect(restored.currentPlayerId).toBe(v.currentPlayerId);
     expect(second.server.rooms.rooms.get(code)?.rec.players).toHaveLength(3);
     await store.close();
+  });
+});
+
+describe('server-side bots', () => {
+  const roomOf = (b: Bot) =>
+    new Promise<import('@cabo/engine').RoomState>((res) => {
+      b.socket.once('room:state', (r) => res(r));
+    });
+
+  it('only the host can add or remove bots, and only between rounds', async () => {
+    const { url } = await start();
+    const { bots: [host, guest] } = await lobby(url, 2);
+    expect(await guest.emit('room:addBot')).toMatchObject({ ok: false, error: 'Only the host can manage bots' });
+    const next = roomOf(host);
+    expect((await host.emit('room:addBot')).ok).toBe(true);
+    const room = await next;
+    const bot = room.players.find((p) => p.bot)!;
+    expect(bot).toMatchObject({ name: 'Dusty (bot)', connected: true });
+    expect(await guest.emit('room:removeBot', { id: bot.id })).toMatchObject({ ok: false });
+    expect(await host.emit('room:removeBot', { id: guest.id })).toMatchObject({ ok: false, error: 'No such bot' });
+
+    await startAndReady([host, guest].slice(0, 1).concat(guest));
+    expect(await host.emit('room:addBot')).toMatchObject({ ok: false, error: 'Wait for the round to end' });
+    expect(await host.emit('room:removeBot', { id: bot.id })).toMatchObject({ ok: false, error: 'Wait for the round to end' });
+  });
+
+  it('removing a bot frees its seat', async () => {
+    const { url } = await start();
+    const { bots: [host] } = await lobby(url, 1);
+    await host.emit('room:addBot');
+    await host.emit('room:addBot');
+    const next = roomOf(host);
+    const ids = (await new Promise<string[]>((res) => {
+      host.socket.once('room:state', (r) => res(r.players.filter((p: { bot: boolean }) => p.bot).map((p: { id: string }) => p.id)));
+      void host.emit('room:addBot');
+    }));
+    await next;
+    expect(ids).toHaveLength(3);
+    const after = roomOf(host);
+    expect((await host.emit('room:removeBot', { id: ids[1] })).ok).toBe(true);
+    expect((await after).players.map((p) => p.name)).toEqual(['Ana', 'Dusty (bot)', 'Doc (bot)']);
+  });
+
+  it('a human and bots play whole rounds; bots only ever act legally', async () => {
+    const { url, server } = await start();
+    const { bots: [human] } = await lobby(url, 1);
+    for (let i = 0; i < 3; i++) expect((await human.emit('room:addBot')).ok).toBe(true);
+
+    for (let round = 1; round <= 2; round++) {
+      expect((await human.emit('room:start')).ok).toBe(true);
+      await human.until((v) => v.phase === 'peek' && v.version === 0);
+      await human.emit('game:action', { type: 'READY' });
+      // The human plays the plainest game: draw, discard, skip abilities.
+      const onView = (v: PlayerView | null) => {
+        if (!v || v.currentPlayerId !== human.id) return;
+        const move =
+          v.phase === 'choose' ? { type: 'DRAW_STOCK' } :
+          v.phase === 'drawn' ? { type: 'DISCARD_DRAWN' } :
+          v.phase === 'ability' ? { type: 'SKIP' } : null;
+        if (move) void human.emit('game:action', { ...move, expectedVersion: v.version });
+      };
+      human.socket.on('game:view', onView);
+      const end = await human.until((v) => v.phase === 'ended', 20_000);
+      human.socket.off('game:view', onView);
+      expect(end.result!.winners.length).toBeGreaterThan(0);
+      // Bots' moves went through the engine like anyone's; the table stays whole.
+      const st = server.rooms.roomOf(human.id)!.game!.state;
+      const cards = st.players.reduce((n, p) => n + p.slots.filter(Boolean).length, 0) + st.stock.length + st.discard.length;
+      expect(cards).toBe(54);
+    }
+    expect(server.rooms.botRejections).toEqual([]);
+    expect(human.logs.some((l) => /^(Dusty|Calamity|Doc) \(bot\) (drew|took|called)/.test(l))).toBe(true);
+  }, 60_000);
+
+  it('the room closes when the last human leaves; a bot never becomes host', async () => {
+    const { url, server } = await start();
+    const { bots: [host, guest], code } = await lobby(url, 2);
+    await host.emit('room:addBot');
+    expect((await host.emit('room:leave')).ok).toBe(true);
+    expect(server.rooms.rooms.get(code)!.rec.hostId).toBe(guest.id);
+    expect((await guest.emit('room:leave')).ok).toBe(true);
+    expect(server.rooms.rooms.has(code)).toBe(false);
   });
 });

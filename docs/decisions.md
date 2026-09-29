@@ -56,6 +56,14 @@ The source rules are ambiguous in places. [PLAN.md](../PLAN.md) records each rul
 - Snapping an opponent's card makes giving a card into the gap optional (R17).
 - A black King looks at an opponent's card **and** one of your own, then optionally swaps them (R10).
 
+## Bots run on the server
+The lobby's **Add bot** seats a player that the server drives itself, instead of a hidden browser or a separate bot client.
+- It works on any deployment with no extra processes or tabs, and survives restarts like any seat.
+- Fairness is structural: a bot's input is its redacted view plus its own events, exactly what a client would get, and its moves go through `applyAction` like anyone's.
+- A bot's session uses a `bot:` token-hash marker instead of a new column, so no migration is needed and no token can ever match it.
+
+**Kept alongside it:** `tools/browser-bot.js`, a browser bot that clicks the real UI, for testing the client itself.
+
 ## Supabase as plain Postgres
 Supabase is used only as managed Postgres, through a direct connection string. RLS is enabled with no policies, so its public APIs can't read game state.
 

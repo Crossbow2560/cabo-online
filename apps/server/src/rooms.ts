@@ -10,9 +10,17 @@ import {
   type RoomState,
   type Timings,
 } from '@cabo/engine';
+import { BotBrain } from './bot';
 import type { GameRecord, RoomRecord, Store } from './store';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+const BOT_NAMES = ['Dusty', 'Calamity', 'Doc', 'Sundance', 'Rattler', 'Tumbleweed', 'Buckshot', 'Belle', 'Cactus', 'Maverick'];
+/** Bots pause like a person would (ms, before `botPace` scaling), so humans can follow and win snap races. */
+const BOT_DELAY: Record<string, [number, number]> = {
+  READY: [2000, 4000],
+  SNAP: [800, 1600],
+  default: [900, 2000],
+};
 
 /** Everything the room manager needs to push to clients. */
 export interface Outbox {
@@ -59,6 +67,7 @@ export class Room {
         id: p.sessionId,
         name: p.name,
         connected: this.connected.has(p.sessionId),
+        bot: !!p.bot,
         offlineSince: this.offlineSince.get(p.sessionId) ?? null,
         totalScore: p.totalScore,
       })),
@@ -82,6 +91,10 @@ export class Room {
 export class RoomManager {
   readonly rooms = new Map<string, Room>();
   private bySession = new Map<string, string>(); // sessionId -> room code
+  /** Server-side bot players: their brain and the pending move. */
+  /** Bot moves the engine refused (tests assert this stays empty). */
+  readonly botRejections: string[] = [];
+  private bots = new Map<string, { brain: BotBrain; timer: NodeJS.Timeout | null; pending: Action | null; version: number }>();
 
   constructor(
     private store: Store,
@@ -91,6 +104,8 @@ export class RoomManager {
     /** Dev/testing only: deal every round from this seed (see CABO_SEED). */
     private fixedSeed: number | null = null,
     private peekHoldMs = DEFAULT_PEEK_HOLD_MS,
+    /** Multiplies bot "thinking" delays (tests use a tiny value). */
+    private botPace = 1,
   ) {}
 
   roomOf(sessionId: string): Room | null {
@@ -140,6 +155,41 @@ export class RoomManager {
     return room;
   }
 
+  /** Host only, between rounds: seat a server-driven bot. */
+  async addBot(hostId: string): Promise<void> {
+    const room = this.hostRoom(hostId);
+    if (room.rec.players.length >= MAX_PLAYERS) throw new GameError('Room is full');
+    const taken = new Set(room.rec.players.map((p) => p.name));
+    const base = BOT_NAMES.find((n) => !taken.has(`${n} (bot)`)) ?? `Bot ${room.rec.players.length + 1}`;
+    const name = `${base} (bot)`;
+    const id = randomUUID();
+    // A session row keeps the room_players foreign key happy. Its token hash is not a sha256,
+    // so no client can ever authenticate as a bot.
+    await this.store.createSession(id, `bot:${id}`, name);
+    room.rec.players.push({ sessionId: id, name, totalScore: 0, bot: true });
+    this.bySession.set(id, room.rec.code);
+    this.bots.set(id, { brain: new BotBrain(id), timer: null, pending: null, version: -1 });
+    this.markOnline(room, id);
+    this.out.log(`r:${room.rec.code}`, { text: `${name} joined the posse` });
+    await room.persist(this.store, 'room');
+    this.broadcastRoom(room);
+  }
+
+  /** Host only, between rounds: remove a bot. */
+  async removeBot(hostId: string, botId: string): Promise<void> {
+    const room = this.hostRoom(hostId);
+    if (!room.rec.players.some((p) => p.sessionId === botId && p.bot)) throw new GameError('No such bot');
+    await this.dropPlayer(room, botId, 'was sent packing');
+  }
+
+  private hostRoom(hostId: string): Room {
+    const room = this.roomOf(hostId);
+    if (!room) throw new GameError('Not in a room');
+    if (room.rec.hostId !== hostId) throw new GameError('Only the host can manage bots');
+    if (room.rec.status === 'playing') throw new GameError('Wait for the round to end');
+    return room;
+  }
+
   /** Leaving mid-round forfeits your hand; play carries on without you (or ends if one player is left). */
   async leave(sessionId: string): Promise<void> {
     const room = this.roomOf(sessionId);
@@ -174,14 +224,22 @@ export class RoomManager {
     room.connected.delete(sessionId);
     this.clearKick(room, sessionId);
     this.bySession.delete(sessionId);
+    this.dropBot(sessionId);
     this.out.view(sessionId, null);
     this.out.detach(sessionId, room.rec.code);
-    if (room.rec.players.length === 0) {
+    const humans = room.rec.players.filter((p) => !p.bot);
+    if (humans.length === 0) {
+      // Bots never play on their own: the last human leaving closes the room.
+      for (const p of room.rec.players) {
+        this.bySession.delete(p.sessionId);
+        this.dropBot(p.sessionId);
+      }
+      room.rec.players = [];
       room.rec.status = 'closed';
       if (room.timer) clearTimeout(room.timer);
       this.rooms.delete(room.rec.code);
     } else if (room.rec.hostId === sessionId) {
-      room.rec.hostId = room.rec.players[0].sessionId;
+      room.rec.hostId = humans[0].sessionId;
     }
     await room.persist(this.store, 'room');
     this.broadcastRoom(room);
@@ -199,6 +257,7 @@ export class RoomManager {
     room.rec.dealerIndex = room.rec.roundNo === 0 ? 0 : (room.rec.dealerIndex + 1) % n;
     room.rec.roundNo++;
     room.rec.status = 'playing';
+    for (const p of room.rec.players) this.bots.get(p.sessionId)?.brain.reset();
     room.peekStartedAt = Date.now();
     room.game = {
       id: randomUUID(),
@@ -237,6 +296,7 @@ export class RoomManager {
     for (const e of r.events) {
       if (e.to) this.out.log(`s:${e.to}`, e);
       else this.out.log(`r:${room.rec.code}`, e);
+      for (const p of room.rec.players) if (p.bot) this.bots.get(p.sessionId)?.brain.observe(e);
     }
     let what: 'game' | 'both' = 'game';
     if (r.state.phase.kind === 'ended') {
@@ -253,6 +313,70 @@ export class RoomManager {
     this.broadcastRoom(room);
     for (const p of room.rec.players) this.sendView(room, p.sessionId);
     this.schedule(room);
+    this.scheduleBots(room);
+  }
+
+  /** Each bot looks at its own redacted view and queues its next move after a human-like pause. */
+  private scheduleBots(room: Room) {
+    const st = room.game?.state;
+    for (const p of room.rec.players) {
+      const bot = this.bots.get(p.sessionId);
+      if (!bot) continue;
+      if (!st || room.rec.status !== 'playing') {
+        this.cancelBot(bot);
+        continue;
+      }
+      // A queued snap stays valid for its whole window, even if others act meanwhile.
+      const pending = bot.pending;
+      if (pending?.type === 'SNAP' && st.phase.kind === 'snap' && st.phase.windowId === pending.windowId) continue;
+      if (pending && bot.version === st.version) continue;
+      this.cancelBot(bot);
+      const action = bot.brain.decide(redactFor(st, p.sessionId));
+      if (!action) continue;
+      const [lo, hi] = BOT_DELAY[action.type] ?? BOT_DELAY.default;
+      bot.pending = action;
+      bot.version = st.version;
+      bot.timer = setTimeout(() => {
+        bot.timer = null;
+        bot.pending = null;
+        this.botAct(room, p.sessionId, action);
+      }, (lo + Math.random() * (hi - lo)) * this.botPace);
+    }
+  }
+
+  private botAct(room: Room, botId: string, action: Action) {
+    if (!room.game || room.rec.status !== 'playing' || !this.bots.has(botId)) return;
+    try {
+      this.apply(room, action);
+    } catch (e) {
+      if (!(e instanceof GameError)) return;
+      if (e.message !== 'Game state changed, try again' && !e.message.startsWith('Too slow')) {
+        this.botRejections.push(`${action.type}: ${e.message}`);
+      }
+      if (action.type === 'SNAP') return;
+      // The table moved on or the move was refused: fall back to the plainest legal move.
+      const kind = room.game.state.phase.kind;
+      const fallback = kind === 'drawn' ? 'DISCARD_DRAWN' : kind === 'choose' ? 'DRAW_STOCK' : kind === 'ability' || kind === 'give' ? 'SKIP' : null;
+      if (!fallback) return this.scheduleBots(room);
+      try {
+        this.apply(room, { type: fallback, playerId: botId } as Action);
+      } catch {
+        this.scheduleBots(room); // not our move after all; wait for the next change
+      }
+    }
+  }
+
+  private cancelBot(bot: { timer: NodeJS.Timeout | null; pending: Action | null }) {
+    if (bot.timer) clearTimeout(bot.timer);
+    bot.timer = null;
+    bot.pending = null;
+  }
+
+  private dropBot(id: string) {
+    const bot = this.bots.get(id);
+    if (!bot) return;
+    this.cancelBot(bot);
+    this.bots.delete(id);
   }
 
   /** R25: one timer per room fires a TICK at the current deadline. */
@@ -332,9 +456,14 @@ export class RoomManager {
       room.peekStartedAt = now;
       for (const p of rec.players) {
         this.bySession.set(p.sessionId, rec.code);
-        this.markOffline(room, p.sessionId, now); // everyone starts offline; reconnecting clears it
+        if (p.bot) {
+          // Bots are always "online"; their card memory starts fresh.
+          this.bots.set(p.sessionId, { brain: new BotBrain(p.sessionId), timer: null, pending: null, version: -1 });
+          this.markOnline(room, p.sessionId);
+        } else this.markOffline(room, p.sessionId, now); // everyone starts offline; reconnecting clears it
       }
       this.schedule(room);
+      this.scheduleBots(room);
     }
     return rows.length;
   }
@@ -344,5 +473,6 @@ export class RoomManager {
       if (room.timer) clearTimeout(room.timer);
       for (const t of room.kickTimers.values()) clearTimeout(t);
     }
+    for (const bot of this.bots.values()) this.cancelBot(bot);
   }
 }

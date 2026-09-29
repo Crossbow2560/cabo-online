@@ -53,6 +53,11 @@ These start a real server on a random port (`createCaboServer` with short timing
   - a second tab replacing the first without marking the player offline,
   - the peek phase waiting for a reconnecting player.
 - **Stale state:** a kicked player who reconnects gets `room:state null`. Players who leave stop receiving room updates.
+- **Server bots:**
+  - only the host adds and removes bots, and only between rounds;
+  - removing a bot frees its seat;
+  - the last human leaving closes the room;
+  - a scripted human plays two full rounds against three bots, with card conservation and no refused bot moves.
 - **Persistence:** a round in progress survives a server restart, with both `MemoryStore` and (when `TEST_DATABASE_URL` is set) `PgStore`.
 
 ## What isn't automated

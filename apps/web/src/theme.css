@@ -390,6 +390,22 @@ body {
 .posse__name { font-weight: 800; overflow-wrap: anywhere; }
 .posse__status-col { text-align: right; white-space: nowrap; }
 .posse__cols th.posse__status-col { text-align: right; }
+.posse__actions { display: flex; gap: 8px; align-items: center; }
+.posse__remove {
+  margin-left: 10px;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--saddle);
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--saddle);
+  font-weight: 800;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.posse__remove:hover { background: var(--saddle); color: var(--cream); }
 .posse__empty td { color: var(--leather); font-style: italic; font-weight: 600; opacity: 0.8; }
 
 .host-tag {

@@ -12,7 +12,7 @@ A real-time multiplayer web version of **Cabo**, the memory card game where the 
 | [📖 Usage guide](docs/usage.md) | How to play, flows and edge cases |
 | [🔌 API](docs/api.md) | HTTP endpoints and Socket.IO events |
 | [🧪 Testing](docs/testing.md) | How to run tests and what they cover |
-| [🤖 Bots](docs/bots.md) | Browser bots that join a room code and play against a real human |
+| [🤖 Bots](docs/bots.md) | Lobby bots (server-side) and browser bots for playing against a real human |
 
 The full rule set and every ruling the engine enforces (R1–R28) live in [PLAN.md](PLAN.md).
 

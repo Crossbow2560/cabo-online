@@ -5,7 +5,7 @@
 1. Open the site and choose **Play now**, then enter a nickname. Your identity is saved in this browser, so reloading keeps your seat.
 2. Choose **Create room**. The lobby shows an **invite link** and a **room code**, each with a Copy button.
 3. Friends open the link (the code is pre-filled), or tap **Join room** and type the code.
-4. The host presses **Start game** once there are 2–8 players.
+4. The host presses **Start game** once there are 2–8 players. Short of players? The host can press **+ Add bot** in the lobby (and **✕** to remove one). Bots play at a human pace from only what their seat can see. See [bots](bots.md).
 
 The same browser profile is always the same player. To test alone, use private windows or different browsers, or add `?profile=<name>` to the URL (e.g. `/?room=ABC123&profile=p2`), which keeps a separate player per name in one browser. To play against bots, see [bots](bots.md).
 

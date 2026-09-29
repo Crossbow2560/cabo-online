@@ -17,7 +17,8 @@
 │   │   ├── src/
 │   │   │   ├── main.ts          entry: loads apps/server/.env, picks the store, reads PORT/PUBLIC_URL/CABO_SEED
 │   │   │   ├── server.ts        Express routes, Socket.IO auth + handlers, input shape checks
-│   │   │   ├── rooms.ts         RoomManager/Room: lifecycle, timers, kick, peek hold, fan-out, restore
+│   │   │   ├── rooms.ts         RoomManager/Room: lifecycle, timers, kick, peek hold, bots, fan-out, restore
+│   │   │   ├── bot.ts           BotBrain: a server bot's card memory and move choice (from its redacted view)
 │   │   │   └── store.ts         Store interface, PgStore (postgres.js), MemoryStore
 │   │   ├── test/integration.test.ts   socket.io-client bots against a real server
 │   │   └── .env.example

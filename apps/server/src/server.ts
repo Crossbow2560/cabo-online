@@ -43,6 +43,8 @@ export interface ServerOptions {
   fixedSeed?: number | null;
   /** How long the peek phase may wait for offline players (default 60s). */
   peekHoldMs?: number;
+  /** Multiplies bot thinking delays (default 1; tests use a small value). */
+  botPace?: number;
   /** R28: max snaps per socket per second. */
   snapRateLimit?: number;
   webDist?: string;
@@ -74,6 +76,7 @@ export async function createCaboServer(opts: ServerOptions) {
     opts.kickAfterMs,
     opts.fixedSeed ?? null,
     opts.peekHoldMs,
+    opts.botPace,
   );
   const restored = await rooms.restore();
   if (restored) console.log(`restored ${restored} room(s)`);
@@ -196,6 +199,13 @@ export async function createCaboServer(opts: ServerOptions) {
     }) as never);
 
     socket.on('room:start', handle(() => rooms.start(sid)) as never);
+
+    socket.on('room:addBot', handle(() => rooms.addBot(sid)) as never);
+
+    socket.on('room:removeBot', handle((req: { id: string }) => {
+      if (typeof req?.id !== 'string') throw new GameError('Bad bot');
+      return rooms.removeBot(sid, req.id);
+    }) as never);
 
     socket.on('game:action', handle((raw: ClientAction) => rooms.act(sid, parseAction(raw, sid))) as never);
 

@@ -234,6 +234,8 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           me={session.sessionId}
           onStart={() => call((ack) => socket.emit('room:start', ack))}
           onLeave={leave}
+          onAddBot={() => call((ack) => socket.emit('room:addBot', ack))}
+          onRemoveBot={(id) => call((ack) => socket.emit('room:removeBot', { id }, ack))}
         />
       ) : view ? (
         <Game

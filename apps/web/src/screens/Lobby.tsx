@@ -7,11 +7,13 @@ import { formatCountdown, useNow } from '../lib/useNow';
 
 const MIN_ROWS = 3;
 
-export function Lobby({ room, me, onStart, onLeave }: {
+export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot }: {
   room: RoomState;
   me: string;
   onStart: () => void;
   onLeave: () => void;
+  onAddBot: () => void;
+  onRemoveBot: (id: string) => void;
 }) {
   const now = useNow(1000);
   const isHost = room.hostId === me;
@@ -39,9 +41,16 @@ export function Lobby({ room, me, onStart, onLeave }: {
           <span className="posse__title">
             Posse <span className="posse__count">({room.players.length}/{MAX_PLAYERS})</span>
           </span>
-          <button className="btn btn--primary btn--sm" onClick={onLeave}>
-            Leave room
-          </button>
+          <div className="posse__actions">
+            {isHost && (
+              <button className="btn btn--light btn--sm" onClick={onAddBot} disabled={room.players.length >= MAX_PLAYERS}>
+                + Add bot
+              </button>
+            )}
+            <button className="btn btn--primary btn--sm" onClick={onLeave}>
+              Leave room
+            </button>
+          </div>
         </div>
         <div className="posse__scroll">
           <table className="posse__table">
@@ -68,7 +77,12 @@ export function Lobby({ room, me, onStart, onLeave }: {
                   </td>
                   <td className="posse__status-col">
                     <span className={`status-dot ${p.connected ? 'status-dot--on' : ''}`} aria-hidden />
-                    <span className="posse__status-text">{p.connected ? 'Online' : 'Away'}</span>
+                    <span className="posse__status-text">{p.bot ? 'Bot' : p.connected ? 'Online' : 'Away'}</span>
+                    {p.bot && isHost && (
+                      <button className="posse__remove" onClick={() => onRemoveBot(p.id)} aria-label={`Remove ${p.name}`} title="Remove bot">
+                        ✕
+                      </button>
+                    )}
                     {!p.connected && p.offlineSince !== null && (
                       <span className="away" title="Removed automatically if they don't come back">
                         {' '}· {formatCountdown(p.offlineSince + room.kickAfterMs - now)}

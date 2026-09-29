@@ -18,6 +18,8 @@ export interface RoomPlayerInfo {
   id: string;
   name: string;
   connected: boolean;
+  /** A server-driven bot (added by the host). */
+  bot: boolean;
   /** Epoch ms when this player went offline; they are kicked after `kickAfterMs`. */
   offlineSince: number | null;
   totalScore: number;
@@ -47,6 +49,9 @@ export interface ClientToServer {
   'room:join': (req: { code: string }, ack: (r: Ack<{ code: string }>) => void) => void;
   'room:leave': (ack: (r: Ack) => void) => void;
   'room:start': (ack: (r: Ack) => void) => void;
+  /** Host only, between rounds. */
+  'room:addBot': (ack: (r: Ack) => void) => void;
+  'room:removeBot': (req: { id: string }, ack: (r: Ack) => void) => void;
   'game:action': (action: ClientAction, ack: (r: Ack) => void) => void;
   'game:snap': (req: SnapRequest, ack: (r: Ack) => void) => void;
 }
