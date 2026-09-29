@@ -25,7 +25,7 @@ The same browser profile is always the same player. To test alone, use private w
   | 7 / 8 | **Peek at yours:** tap one of your cards to see it. |
   | 9 / 10 | **Spy:** tap an opponent's card to see it. |
   | J / Q | **Blind swap:** tap one of your cards, then an opponent's. |
-  | Black K | **Look & swap:** tap an opponent's card, then one of yours. Both stay face-up for you. Then pick the swap: the two cards you looked at are selected, but you can tap any card of yours and any other player's card instead. Press **Swap**, or **Keep them** to swap nothing. |
+  | Black K | **Look & swap:** tap an opponent's card; it's shown to you and put back. Then tap one of yours; same again. Each step waits for the card to be back. Then, with every card back face-down, pick the swap: the two cards you looked at are selected, but you can tap any card of yours and any other player's card instead. Press **Swap**, or **Keep them** to swap nothing. |
 
   Once someone calls CABO, their hand is locked: a J/Q can't blind swap with them, a Black King can look at their card but not swap with them, and nobody else can snap their cards (the caller can still snap their own).
 

@@ -33,17 +33,20 @@ export interface PlayerState {
   ready: boolean;
 }
 
+/** A special card's power in use. */
+export interface AbilityPhase {
+  kind: 'ability';
+  ability: Ability;
+  /** look_swap (R10): the other player's card they looked at, then their own card they looked at. */
+  peeked?: { playerId: string; slot: number };
+  peekedMine?: number;
+}
+
 export type Phase =
   | { kind: 'peek' }
   | { kind: 'choose' }
   | { kind: 'drawn'; card: Card }
-  | {
-      kind: 'ability';
-      ability: Ability;
-      /** look_swap (R10): the other player's card they looked at, then their own card they looked at. */
-      peeked?: { playerId: string; slot: number };
-      peekedMine?: number;
-    }
+  | AbilityPhase
   /**
    * `onlyFor` (R30): a snap streak. After the first correct snap, the snapper alone gets another
    * window to snap more cards of the same rank from their own hand.
@@ -54,7 +57,11 @@ export type Phase =
    * R31: a short pause before the snap window while a looked-at card is shown and put back, or
    * two swapped cards cross. The cards are in the air, so nobody could tap them anyway.
    */
-  | { kind: 'settle'; after: 'peek' | 'swap' }
+  /**
+   * `resume` (R10): a Black King's look. Once the card is back, the ability carries on (the next
+   * look, or choosing the swap) instead of opening the snap window.
+   */
+  | { kind: 'settle'; after: 'peek' | 'swap'; resume?: AbilityPhase }
   | {
       kind: 'ended';
       /** forfeit = fewer than 2 players left after removals; the survivor wins. */

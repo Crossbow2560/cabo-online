@@ -47,8 +47,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
 }) {
   const [pick, setPick] = useState<Pick>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
-  const [revealed, setRevealed] = useState<Record<string, { card: Card; until: number }>>({});
-  const seenLog = useRef(log.at(-1)?.id ?? 0);
   const now = useNow(200);
   const me = view.you;
   // Watching without a seat: everyone sits around the table, nothing is tappable.
@@ -75,17 +73,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
       console.error('[motion]', e);
     }
   }, [view.version, view.phase, room.roundNo]);
-
-  // Private peek results: kept so a Black King "look" stays visible while its owner decides to swap.
-  // (The peek itself is animated in lib/motion.ts.)
-  useEffect(() => {
-    const fresh = log.filter((l) => l.id > seenLog.current);
-    if (!fresh.length) return;
-    seenLog.current = fresh.at(-1)!.id;
-    const add: Record<string, { card: Card; until: number }> = {};
-    for (const l of fresh) if (l.reveal && l.to === me) add[`${l.reveal.playerId}:${l.reveal.slot}`] = { card: l.reveal.card, until: Date.now() };
-    if (Object.keys(add).length) setRevealed((r) => ({ ...r, ...add }));
-  }, [log, me]);
 
   const act = (action: ClientAction) =>
     call((ack) => socket.emit('game:action', { ...action, expectedVersion: view.version } as ClientAction, ack)).then(() => setPick(null));
@@ -189,16 +176,9 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
 
   const slotState = (ownerId: string) => (slot: number): SlotState => {
     const sv = view.players.find((p) => p.id === ownerId)?.slots[slot];
-    const rev = revealed[`${ownerId}:${slot}`];
-    // Black King: keep the looked-at card visible while the player decides whether to swap.
-    // Black King: both cards the player looked at stay visible while they decide whether to swap.
-    const deciding =
-      myTurn &&
-      ((view.abilityPeeked?.playerId === ownerId && view.abilityPeeked.slot === slot) ||
-        (ownerId === me && view.abilityPeekedMine === slot));
-    const live = rev && deciding ? rev.card : null;
+    // Cards show only what the server says: a Black King's looked-at cards go back face-down (R10).
     return {
-      card: sv?.card ?? live,
+      card: sv?.card ?? null,
       flipped: false,
       selectable: canTap(ownerId, slot),
       selected: kingDeciding(view) && myTurn
@@ -495,6 +475,8 @@ function Prompt({ view, pick, name }: { view: PlayerView; pick: Pick; name: (id:
     }
     case 'settle': // R31: snapping opens once the card is back in place
       if (view.lastSettle === 'swap') return <>Cards changing hands… snapping opens in a moment</>;
+      // R10: a Black King look; the next step waits until the card is back.
+      if (view.settleResumes) return myTurn ? <>Take a good look… your Black King carries on once the card is back</> : <>{cur} is looking at a card with a Black King…</>;
       return myTurn ? <>Take a good look… snapping opens once your card is back</> : <>{cur} is looking at a card… snapping opens once it's back</>;
     case 'give':
       return view.give!.snapperId === me

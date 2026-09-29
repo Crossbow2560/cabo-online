@@ -48,7 +48,7 @@ export function RulesModal({ open, onClose }: { open: boolean; onClose: () => vo
             <li><span className="badge">7</span><span className="badge">8</span>Look at one of your own cards.</li>
             <li><span className="badge">9</span><span className="badge">10</span>Look at another player’s card.</li>
             <li><span className="badge">J</span><span className="badge">Q</span>Blind swap one of your cards with another player’s.</li>
-            <li><span className="badge">K♠</span><span className="badge">K♣</span>Look at another player’s card and one of your own. Then you may swap any one of your cards with any other player’s card (not just the two you looked at), or keep everything as it is.</li>
+            <li><span className="badge">K♠</span><span className="badge">K♣</span>Look at another player’s card, then one of your own. Each one is shown to you and put back before the next step. Then, with every card back on the table, you may swap any one of your cards with any other player’s card (not just the two you looked at), or keep everything as it is. You can also skip it entirely.</li>
           </ul>
           <p><b>The CABO caller’s hand is locked.</b> Once someone calls CABO, a Jack or Queen can’t blind swap with them, a Black King can look at their card but not swap with them, and nobody else can snap their cards.</p>
 

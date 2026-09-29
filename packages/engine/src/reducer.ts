@@ -1,6 +1,7 @@
 import { abilityOf, buildDeck, cardLabel, cardValue, shuffle, type Card } from './cards';
 import {
   DEFAULT_TIMINGS,
+  type AbilityPhase,
   MAX_PLAYERS,
   MIN_PLAYERS,
   type Action,
@@ -205,8 +206,7 @@ class Ctx {
         this.private(me.id, `Your slot ${a.slot + 1} is ${cardLabel(card)}`, { playerId: me.id, slot: a.slot, card });
         if (kingStep) {
           ph.peekedMine = a.slot;
-          s.deadline = this.now + s.timings.choiceMs;
-          return;
+          return this.settle('peek', ph); // R10: all cards back on the table, then choose the swap
         }
         return this.settle('peek'); // R31: snap only once the card is back in place
       }
@@ -220,8 +220,7 @@ class Ctx {
         this.private(me.id, `${target.name}'s slot ${a.slot + 1} is ${cardLabel(card)}`, { playerId: target.id, slot: a.slot, card });
         if (ph.ability === 'look_swap' && me.slots.some(Boolean)) {
           ph.peeked = { playerId: target.id, slot: a.slot };
-          s.deadline = this.now + s.timings.choiceMs;
-          return;
+          return this.settle('peek', ph); // R10: their card goes back before you look at yours
         }
         return this.settle('peek'); // R31
       }
@@ -322,6 +321,12 @@ class Ctx {
       case 'snap':
         return this.advanceTurn();
       case 'settle':
+        // R10: a Black King look is over: on to the next step, with a fresh choice timer.
+        if (ph.resume) {
+          s.phase = ph.resume;
+          s.deadline = this.now + s.timings.choiceMs;
+          return;
+        }
         return this.openSnapWindow(); // R31: the card is back; now anyone may snap
       case 'give':
         this.log(`${this.player(ph.snapperId).name} ran out of time — no card given`);
@@ -338,9 +343,9 @@ class Ctx {
   }
 
   /** R31: wait for a peeked card to be put back (or swapped cards to land) before the snap window. */
-  private settle(after: 'peek' | 'swap'): void {
+  private settle(after: 'peek' | 'swap', resume?: AbilityPhase): void {
     const s = this.s;
-    s.phase = { kind: 'settle', after };
+    s.phase = resume ? { kind: 'settle', after, resume } : { kind: 'settle', after };
     // Games saved before these timings existed fall back to the defaults.
     const ms = after === 'peek' ? s.timings.peekViewMs ?? DEFAULT_TIMINGS.peekViewMs : s.timings.swapSettleMs ?? DEFAULT_TIMINGS.swapSettleMs;
     s.deadline = this.now + ms;
@@ -400,6 +405,10 @@ class Ctx {
     if (ph.kind === 'peek') {
       if (s.players.every((p) => p.ready)) this.startTurns();
       return;
+    }
+    // A Black King mid-look whose looker or looked-at player has gone: nothing left to carry on with.
+    if (ph.kind === 'settle' && ph.resume && (wasCurrent || ph.resume.peeked?.playerId === id)) {
+      s.phase = { kind: 'settle', after: ph.after };
     }
     if (ph.kind === 'ability' && ph.peeked?.playerId === id) {
       return this.openSnapWindow(); // the Black King target is gone — nothing left to swap with

@@ -28,6 +28,8 @@ export interface PlayerView {
   snapWindowId: number | null;
   /** R31: during a `settle` pause, whether it follows a peek or a swap. */
   lastSettle: 'peek' | 'swap' | null;
+  /** R10: during a Black King look's pause, the ability carries on afterwards (rather than snapping). */
+  settleResumes: boolean;
   /** R30: set during a snap streak; only this player may snap (their own cards). */
   snapOnlyFor: string | null;
   /** Length of a snap window; each client times its own window from when it sees it open. */
@@ -71,6 +73,7 @@ export function redactFor(s: GameState, viewerId: string): PlayerView {
     snapWindowId: ph.kind === 'snap' ? ph.windowId : null,
     snapOnlyFor: ph.kind === 'snap' ? ph.onlyFor ?? null : null,
     lastSettle: ph.kind === 'settle' ? ph.after : null,
+    settleResumes: ph.kind === 'settle' && !!ph.resume,
     snapMs: s.timings.snapMs,
     give: ph.kind === 'give' ? { snapperId: ph.snapperId, targetId: ph.targetId, slot: ph.slot } : null,
     result: ph.kind === 'ended' ? { reason: ph.reason, scores: ph.scores, winners: ph.winners } : null,

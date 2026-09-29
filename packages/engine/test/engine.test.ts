@@ -192,6 +192,12 @@ describe('abilities', () => {
     return ok(s, { type: 'DISCARD_DRAWN', playerId: 'p1' });
   };
 
+  /** R10: a Black King look pauses while the card is shown and put back; step past it. */
+  const settled = (s: GameState) => {
+    expect(s.phase).toMatchObject({ kind: 'settle', after: 'peek' });
+    return ok(s, { type: 'TICK' }, s.deadline!);
+  };
+
   it('7/8: peek own (private event only)', () => {
     const s = drawAndDiscard('7S');
     expect(s.phase).toMatchObject({ kind: 'ability', ability: 'peek_own' });
@@ -246,13 +252,13 @@ describe('abilities', () => {
     let s = drawAndDiscard('KS');
     expect(err(s, { type: 'SWAP', playerId: 'p1', mySlot: 0 })).toBe('invalid');
     expect(err(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 })).toBe('invalid'); // theirs first
-    s = ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
+    s = settled(ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 }));
     expect(s.phase).toMatchObject({ kind: 'ability', peeked: { playerId: 'p0', slot: 0 } });
     expect(err(s, { type: 'SWAP', playerId: 'p1', mySlot: 3 })).toBe('invalid'); // must look at own first
     const r = run(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 });
     if (!r.ok) throw new Error(r.message);
     expect(r.events.find((e) => e.to)?.reveal).toEqual({ playerId: 'p1', slot: 3, card: c('10H') });
-    s = r.state;
+    s = settled(r.state);
     expect(s.phase).toMatchObject({ kind: 'ability', peekedMine: 3 });
     expect(redactFor(s, 'p2').abilityPeekedMine).toBe(3);
     s = ok(s, { type: 'SWAP', playerId: 'p1', mySlot: 3 }); // defaults: the two cards looked at
@@ -267,8 +273,8 @@ describe('abilities', () => {
 
   it('R10: after both looks, the Black King may swap any of my cards with any other player\'s card', () => {
     let s = drawAndDiscard('KS');
-    s = ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
-    s = ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 });
+    s = settled(ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 }));
+    s = settled(ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 }));
     const before = s;
     // Neither card looked at: p1's slot 1 for p2's slot 2.
     s = ok(s, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p2', slot: 2 });
@@ -280,14 +286,32 @@ describe('abilities', () => {
     expect(err(before, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p1', slot: 2 })).toBe('invalid');
     expect(err(before, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p2', slot: 9 })).toBe('invalid');
     let early = drawAndDiscard('KS');
-    early = ok(early, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
+    early = settled(ok(early, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 }));
     expect(err(early, { type: 'SWAP', playerId: 'p1', mySlot: 1, targetId: 'p2', slot: 2 })).toBe('invalid');
+  });
+
+  it('R10: each Black King look waits for the card to be put back before the next step', () => {
+    let s = drawAndDiscard('KS');
+    s = ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
+    expect(s.phase).toMatchObject({ kind: 'settle', after: 'peek', resume: { ability: 'look_swap' } });
+    expect(redactFor(s, 'p1').settleResumes).toBe(true);
+    // Nothing can happen during the look: not the next look, not a swap, not a snap.
+    expect(err(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 })).toBe('wrong_phase');
+    expect(err(s, { type: 'SWAP', playerId: 'p1', mySlot: 3 })).toBe('wrong_phase');
+    expect(err(s, { type: 'TICK' }, s.deadline! - 1)).toBe('not_due');
+    s = ok(s, { type: 'TICK' }, s.deadline!);
+    expect(s.phase).toMatchObject({ kind: 'ability', ability: 'look_swap', peeked: { playerId: 'p0', slot: 0 } });
+    expect(s.deadline).toBe(T0 + s.timings.peekViewMs + s.timings.choiceMs); // a fresh choice timer
+    s = ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 3 }, T0 + s.timings.peekViewMs);
+    expect(s.phase).toMatchObject({ kind: 'settle', after: 'peek' });
+    s = ok(s, { type: 'TICK' }, s.deadline!);
+    expect(s.phase).toMatchObject({ kind: 'ability', peekedMine: 3 }); // now choose the swap
   });
 
   it('black king: can decline the swap after looking at both', () => {
     let s = drawAndDiscard('KC');
-    s = ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 });
-    s = ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 1 });
+    s = settled(ok(s, { type: 'PEEK_OTHER', playerId: 'p1', targetId: 'p0', slot: 0 }));
+    s = settled(ok(s, { type: 'PEEK_OWN', playerId: 'p1', slot: 1 }));
     s = ok(s, { type: 'SKIP', playerId: 'p1' });
     expect(s.phase.kind).toBe('snap');
     expect(s.players[0].slots[0]).toEqual(c('2S'));
@@ -496,7 +520,9 @@ describe('cabo & end of round', () => {
     k = ok(k, { type: 'DRAW_STOCK', playerId: 'p2' });
     k = ok(k, { type: 'DISCARD_DRAWN', playerId: 'p2' });
     k = ok(k, { type: 'PEEK_OTHER', playerId: 'p2', targetId: 'p1', slot: 0 });
+    k = ok(k, { type: 'TICK' }, k.deadline!); // the look is over
     k = ok(k, { type: 'PEEK_OWN', playerId: 'p2', slot: 0 });
+    k = ok(k, { type: 'TICK' }, k.deadline!);
     expect(err(k, { type: 'SWAP', playerId: 'p2', mySlot: 0 })).toBe('invalid');
     expect(ok(k, { type: 'SKIP', playerId: 'p2' }).phase.kind).toBe('snap');
   });
