@@ -1389,11 +1389,14 @@ button.pcard:disabled { opacity: 1; }
 /* ======== lobby ⚙ game settings ======== */
 .corner-controls { display: flex; gap: 8px; }
 /* Start game with the host's ⚙ settings button beside it */
-.lobby__start-row { display: flex; gap: 12px; justify-content: center; align-items: stretch; }
-.lobby__settings-btn { padding-left: 0; padding-right: 0; aspect-ratio: 1; display: grid; place-items: center; flex-shrink: 0; }
+/* One bar as wide as Start game used to be: Start fills it, the square ⚙ sits at the end. */
+.lobby__start-row { display: flex; gap: 12px; align-items: stretch; width: min(460px, calc(100vw - 32px)); }
+.lobby__start .lobby__start-row > .btn--primary { flex: 1; min-width: 0; white-space: nowrap; padding-left: 12px; padding-right: 12px; }
+/* Square, as tall as Start game. It must not inherit .btn--lg's 320px min-width: being square, that
+   would make it (and the whole row) 320px tall on anything wider than a phone. */
+.lobby__start .lobby__settings-btn { min-width: 0; padding-left: 0; padding-right: 0; aspect-ratio: 1; display: grid; place-items: center; flex-shrink: 0; }
 .lobby__settings-icon { width: 30px; height: 30px; display: block; }
 .lobby__settings-icon svg { width: 100%; height: 100%; display: block; }
-@media (max-width: 640px) { .lobby__start .lobby__start-row .btn--lg { min-width: 0; } .lobby__start-row > .btn--primary { flex: 1; } }
 .game-settings { display: grid; gap: 12px; width: 100%; }
 .game-settings__title { text-align: center; }
 .game-settings__note { margin: 0; text-align: center; font-weight: 700; color: var(--leather); }
