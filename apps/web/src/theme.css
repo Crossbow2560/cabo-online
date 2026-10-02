@@ -1439,3 +1439,6 @@ button.pcard:disabled { opacity: 1; }
   from { box-shadow: 0 5px 0 var(--saddle-deep), 0 0 0 0 var(--sand); }
   to { box-shadow: 0 5px 0 var(--saddle-deep), 0 0 0 4px var(--sand); }
 }
+/* Round top-bar buttons have no padding at any size: the phone rule `.tbar .btn--sm { padding: 5px 10px }`
+   is more specific than `.tbar__icon` and squeezed the 18px icons into 14px, pushing them right. */
+.tbar .tbar__icon { padding: 0; }
