@@ -1442,3 +1442,6 @@ button.pcard:disabled { opacity: 1; }
 /* Round top-bar buttons have no padding at any size: the phone rule `.tbar .btn--sm { padding: 5px 10px }`
    is more specific than `.tbar__icon` and squeezed the 18px icons into 14px, pushing them right. */
 .tbar .tbar__icon { padding: 0; }
+/* The bottom bar's Posse / Log cards open upward over the table; keep them above the table's own
+   overlays (the pause blur is z-index 30), so they stay sharp and usable while paused. */
+.tfoot { z-index: 35; }
