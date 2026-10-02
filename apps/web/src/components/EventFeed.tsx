@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { LogLine } from '../App';
 
 const TOAST_MS = 3500;
@@ -19,8 +19,12 @@ export function Toasts({ log, now }: { log: LogLine[]; now: number }) {
 }
 
 /** Collapsible full log in the bottom-right corner. */
-export function LogDock({ log }: { log: LogLine[] }) {
-  const [open, setOpen] = useState(false);
+export function LogDock({ log, open, onToggle }: {
+  log: LogLine[];
+  /** Open state lives in Game, so on phones opening this closes the Posse card. */
+  open: boolean;
+  onToggle: () => void;
+}) {
   const ref = useRef<HTMLOListElement>(null);
   useEffect(() => {
     if (open) ref.current?.scrollTo(0, ref.current.scrollHeight);
@@ -42,7 +46,7 @@ export function LogDock({ log }: { log: LogLine[] }) {
           </ol>
         </div>
       )}
-      <button className="btn btn--cream btn--sm chip" aria-expanded={open} aria-controls="log-card" onClick={() => setOpen((o) => !o)}>
+      <button className="btn btn--cream btn--sm chip" aria-expanded={open} aria-controls="log-card" onClick={onToggle}>
         Log {open ? '▾' : '▴'}
       </button>
     </div>

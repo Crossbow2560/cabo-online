@@ -1,11 +1,16 @@
-import { useState } from 'react';
 import type { RoomState } from '@cabo/engine';
 import { formatCountdown } from '../lib/useNow';
 import { Icon } from './Icon';
 
 /** Small collapsible roster: online/away countdown and running totals. */
-export function PlayersCard({ room, me, now }: { room: RoomState; me: string; now: number }) {
-  const [open, setOpen] = useState(() => window.matchMedia?.('(min-width: 1280px)').matches ?? true);
+export function PlayersCard({ room, me, now, open, onToggle }: {
+  room: RoomState;
+  me: string;
+  now: number;
+  /** Open state lives in Game, so on phones opening this closes the Log (they don't fit side by side). */
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
     <div className="dock dock--left">
       {open && (
@@ -32,7 +37,7 @@ export function PlayersCard({ room, me, now }: { room: RoomState; me: string; no
           </ul>
         </div>
       )}
-      <button className="btn btn--cream btn--sm chip" aria-expanded={open} aria-controls="players-card" onClick={() => setOpen((o) => !o)}>
+      <button className="btn btn--cream btn--sm chip" aria-expanded={open} aria-controls="players-card" onClick={onToggle}>
         Posse ({room.players.length}) {open ? '▾' : '▴'}
       </button>
     </div>

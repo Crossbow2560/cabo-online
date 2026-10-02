@@ -242,6 +242,24 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   // Seating: on large screens with 3+ players, opponents sit around the table clockwise from my left
   // (left side bottom→top, across the top, right side top→bottom). Phones keep everyone on top.
   const roomy = useMediaQuery('(min-width: 900px) and (min-height: 560px)');
+
+  // Bottom-bar cards (Posse, Log). On phones they don't fit side by side, so opening one closes the other.
+  const phone = useMediaQuery('(max-width: 640px)');
+  const [docks, setDocks] = useState(() => ({
+    posse: window.matchMedia?.('(min-width: 1280px)').matches ?? true,
+    log: false,
+    last: 'posse' as 'posse' | 'log',
+  }));
+  const toggleDock = (which: 'posse' | 'log') =>
+    setDocks((d) => {
+      const opening = !d[which];
+      const other = which === 'posse' ? 'log' : 'posse';
+      return { ...d, [which]: opening, ...(opening && phone ? { [other]: false } : {}), last: opening ? which : d.last };
+    });
+  // Becoming phone-sized (e.g. rotating a tablet) with both open: keep the one opened last.
+  useEffect(() => {
+    if (phone && docks.posse && docks.log) setDocks((d) => ({ ...d, [d.last === 'posse' ? 'log' : 'posse']: false }));
+  }, [phone, docks.posse, docks.log]);
   const sides = roomy && opponents.length >= 2;
   const perSide = !sides ? 0 : opponents.length >= 5 ? 2 : 1;
   const leftSeats = opponents.slice(0, perSide).reverse();
@@ -409,8 +427,8 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
       </section>
 
       <footer className="tfoot">
-        <PlayersCard room={room} me={me} now={now} />
-        <LogDock log={log} />
+        <PlayersCard room={room} me={me} now={now} open={docks.posse} onToggle={() => toggleDock('posse')} />
+        <LogDock log={log} open={docks.log} onToggle={() => toggleDock('log')} />
       </footer>
 
       <ConfirmDialog
