@@ -83,6 +83,14 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   if (view.snapWindowId !== snapWin.current.id) {
     snapWin.current = { id: view.snapWindowId, seenAt: performance.now(), seenAtWall: Date.now() };
   }
+  // The countdown bar runs as one CSS animation per window (smooth, and it never starts overfull):
+  // fixed when the window first shows, from the time left then.
+  const snapBarRef = useRef<{ id: number | null; ms: number; from: number }>({ id: null, ms: 0, from: 0 });
+  if (view.snapWindowId !== null && snapBarRef.current.id !== view.snapWindowId) {
+    const left = Math.max(0, view.snapMs - (performance.now() - snapWin.current.seenAt));
+    snapBarRef.current = { id: view.snapWindowId, ms: left, from: Math.min(1, left / view.snapMs) };
+  }
+  const snapBar = snapBarRef.current;
   const sentSnap = useRef<number | null>(null);
   const [snapStatus, setSnapStatus] = useState<{ id: number; status: 'sent' | 'over' } | null>(null);
   const mySnap = snapStatus && snapStatus.id === view.snapWindowId ? snapStatus.status : null;
@@ -375,7 +383,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
               pick={pick}
               setPick={setPick}
               act={act}
-              snapLeft={view.phase === 'snap' && !mySnap ? Math.max(0, 1 - (now - snapWin.current.seenAtWall) / view.snapMs) : 0}
+              snapBar={view.phase === 'snap' && !mySnap ? snapBar : null}
               snapStatus={mySnap}
             />
           </div>

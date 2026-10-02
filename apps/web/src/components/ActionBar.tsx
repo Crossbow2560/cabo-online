@@ -23,13 +23,13 @@ export function kingChoice(view: PlayerView, pick: Pick): KingChoice {
 }
 
 /** Context buttons for the current phase (logic carried over from the interim Controls). */
-export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
+export function ActionBar({ view, pick, setPick, act, snapBar, snapStatus }: {
   view: PlayerView;
   pick: Pick;
   setPick: (p: Pick) => void;
   act: (a: ClientAction) => void;
-  /** 0..1 of the snap window remaining. */
-  snapLeft: number;
+  /** The snap window's countdown (one animation per window), or null when it's done for this player. */
+  snapBar: { id: number | null; ms: number; from: number } | null;
   /** This player snapped ('sent') or their window ran out ('over'); the server decides once everyone's in. */
   snapStatus: 'sent' | 'over' | null;
 }) {
@@ -55,7 +55,7 @@ export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
               Done
             </button>
           )}
-          <span className="snap-banner__bar" style={{ transform: `scaleX(${snapLeft})` }} />
+          <SnapBar bar={snapBar} />
         </div>
       </div>
     );
@@ -68,7 +68,7 @@ export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
           <span className="snap-banner__hint">
             {snapStatus === 'sent' ? 'Snap sent — checking who was first…' : snapStatus === 'over' ? 'Waiting for everyone’s snaps…' : 'Tap a card that matches the discard'}
           </span>
-          <span className="snap-banner__bar" style={{ transform: `scaleX(${snapLeft})` }} />
+          <SnapBar bar={snapBar} />
         </div>
       </div>
     );
@@ -138,4 +138,16 @@ export function ActionBar({ view, pick, setPick, act, snapLeft, snapStatus }: {
     default:
       return <div className="actions" />;
   }
+}
+
+/** The snap window's countdown: one smooth CSS animation from the time left down to empty. */
+function SnapBar({ bar }: { bar: { id: number | null; ms: number; from: number } | null }) {
+  if (!bar) return <span className="snap-banner__bar snap-banner__bar--done" />;
+  return (
+    <span
+      key={bar.id ?? undefined}
+      className="snap-banner__bar snap-banner__bar--run"
+      style={{ animationDuration: `${bar.ms}ms`, '--from': bar.from } as React.CSSProperties}
+    />
+  );
 }

@@ -1421,3 +1421,21 @@ button.pcard:disabled { opacity: 1; }
   .table--sides .felt { flex-direction: column; }
   .table--sides .prompt-strip { width: min(100%, 360px); height: auto; align-items: center; text-align: center; }
 }
+
+/* ======== snap banner: steady size, smooth countdown ======== */
+.snap-banner__bar { transition: none; }
+.snap-banner__bar--run { animation: snap-countdown linear forwards; }
+.snap-banner__bar--done { transform: scaleX(0); }
+@keyframes snap-countdown { from { transform: scaleX(var(--from, 1)); } to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) { .snap-banner__bar--run { animation: none; transform: scaleX(var(--from, 1)); } }
+/* Phones: the banner sits in a narrow 128px column, where its text wraps to 2 or 3 lines; a fixed
+   height stops it jumping as the text changes, and it glows instead of growing (no jitter). */
+@media (max-width: 640px) {
+  .snap-banner { height: 96px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px; animation-name: snap-glow-pulse; }
+  .snap-banner__hint { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.2; }
+  .snap-banner__done { margin-top: 2px; padding: 3px 12px; }
+}
+@keyframes snap-glow-pulse {
+  from { box-shadow: 0 5px 0 var(--saddle-deep), 0 0 0 0 var(--sand); }
+  to { box-shadow: 0 5px 0 var(--saddle-deep), 0 0 0 4px var(--sand); }
+}
