@@ -169,7 +169,7 @@ export function playMotions(me: string) {
     for (const m of p.moves) busy.add(spotKey(m.to));
     for (const pk of p.peek) busy.add(spotKey(pk.spot));
   }
-  settle(items[0].snapshot, busy);
+  const moved = settle(items[0].snapshot, busy);
 
   // Events play one after another (e.g. the reshuffle, then the draw that needed it).
   let offset = 0;
@@ -188,8 +188,11 @@ export function playMotions(me: string) {
       });
     }
     for (const f of p.flash) {
-      window.setTimeout(() => flash(f.spot, f.card), offset);
-      span = Math.max(span, 400);
+      // A wrong snap that grew the hand re-centres it: show the card's face once it has stopped
+      // gliding, so the face lands on the card and not beside it.
+      const wait = moved.has(spotKey(f.spot)) ? SETTLE_MS : 0;
+      window.setTimeout(() => flash(f.spot, f.card), offset + wait);
+      span = Math.max(span, wait + 400);
     }
     for (const pk of p.peek) {
       const card = p.reveals.get(spotKey(pk.spot));
@@ -358,8 +361,9 @@ function fly(f: Flight, delay: number) {
 }
 
 /** Cards that shifted because the layout changed (new penalty column, piles re-centring) glide over. */
-function settle(before: Map<string, DOMRect>, busy: Set<string>) {
-  if (animationsOff()) return;
+function settle(before: Map<string, DOMRect>, busy: Set<string>): Set<string> {
+  const moved = new Set<string>();
+  if (animationsOff()) return moved;
   document.querySelectorAll<HTMLElement>('[data-spot]').forEach((el) => {
     const key = el.dataset.spot!;
     const old = before.get(key);
@@ -370,7 +374,9 @@ function settle(before: Map<string, DOMRect>, busy: Set<string>) {
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
     const [x, y] = unturn(dx, dy, turnOf(el));
     el.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: 'none' }], { duration: SETTLE_MS, easing: 'ease-out' });
+    moved.add(key);
   });
+  return moved;
 }
 
 // ---------------------------------------------------------------- peeks
