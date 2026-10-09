@@ -729,12 +729,11 @@ button.pcard:disabled { opacity: 1; }
 .pcard--face { background: var(--cream); }
 .pcard--red { color: var(--rust); }
 .pcard__corner { position: absolute; top: 5%; left: 8%; font-size: calc(var(--w) * 0.2); line-height: 0.95; text-align: center; }
-.pcard__corner--br { top: auto; left: auto; bottom: 5%; right: 8%; transform: rotate(180deg); }
 .pcard__pip { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--w) * 0.46); line-height: 1; }
 .pcard__joker { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: calc(var(--w) * 0.15); color: var(--saddle-deep); }
 .pcard__joker-icon { width: 46%; height: 46%; color: var(--saddle); }
 .pcard--sm .pcard__corner { top: 6%; left: 10%; font-size: calc(var(--w) * 0.34); }
-.pcard--sm .pcard__corner--br, .pcard--sm .pcard__pip { display: none; }
+.pcard--sm .pcard__pip { display: none; }
 .pcard--sm .pcard__joker span { display: none; }
 
 .pcard--gap { background: transparent; border: 2px dashed color-mix(in srgb, var(--cream) 70%, transparent); box-shadow: none; }

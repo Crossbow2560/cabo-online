@@ -605,10 +605,10 @@ function buildCard(card: Card | undefined, size: string): HTMLElement {
   const red = card.suit === 'H' || card.suit === 'D';
   el.className = `pcard pcard--${size} pcard--face${red ? ' pcard--red' : ''}`;
   if (card.rank === 'JOKER') {
-    el.innerHTML = `<span class="pcard__corner">★</span><span class="pcard__joker"><span class="pcard__joker-icon" style="display:inline-block">${lawStar}</span><span>JOKER</span></span><span class="pcard__corner pcard__corner--br">★</span>`;
+    el.innerHTML = `<span class="pcard__corner">★</span><span class="pcard__joker"><span class="pcard__joker-icon" style="display:inline-block">${lawStar}</span><span>JOKER</span></span>`;
     return el;
   }
   const s = SUIT[card.suit!];
-  el.innerHTML = `<span class="pcard__corner">${card.rank}<br>${s}</span><span class="pcard__pip">${s}</span><span class="pcard__corner pcard__corner--br">${card.rank}<br>${s}</span>`;
+  el.innerHTML = `<span class="pcard__corner">${card.rank}<br>${s}</span><span class="pcard__pip">${s}</span>`;
   return el;
 }

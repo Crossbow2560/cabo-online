@@ -93,7 +93,6 @@ function Face({ card }: { card: Card }) {
           <Icon name="law-star" className="pcard__joker-icon" />
           <span>JOKER</span>
         </span>
-        <span className="pcard__corner pcard__corner--br">★</span>
       </>
     );
   }
@@ -106,11 +105,6 @@ function Face({ card }: { card: Card }) {
         {suit}
       </span>
       <span className="pcard__pip">{suit}</span>
-      <span className="pcard__corner pcard__corner--br">
-        {card.rank}
-        <br />
-        {suit}
-      </span>
     </>
   );
 }
