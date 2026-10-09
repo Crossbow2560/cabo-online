@@ -90,7 +90,7 @@ export async function createCaboServer(opts: ServerOptions) {
   // ---- HTTP: guest sessions ----
   app.post('/api/session', async (req, res) => {
     const nickname = String(req.body?.nickname ?? '').trim();
-    if (nickname.length < 1 || nickname.length > 20) return res.status(400).json({ error: 'Nickname must be 1-20 characters' });
+    if (nickname.length < 1 || nickname.length > 8) return res.status(400).json({ error: 'Nickname must be 1-8 characters' });
     const token = randomBytes(32).toString('hex');
     const id = randomUUID();
     try {

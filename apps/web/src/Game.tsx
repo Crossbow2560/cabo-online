@@ -15,6 +15,7 @@ import { playSound, useMusic } from './lib/sound';
 import { Title } from './components/Title';
 import { playDeal, playMotions } from './lib/motion';
 import { useMediaQuery } from './lib/useMediaQuery';
+import { useFitCards } from './lib/useFitCards';
 import { useNow } from './lib/useNow';
 import type { Orient } from './components/PlayingCard';
 
@@ -246,7 +247,8 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   // Bottom-bar cards (Posse, Log). On phones they don't fit side by side, so opening one closes the other.
   const phone = useMediaQuery('(max-width: 640px)');
   const [docks, setDocks] = useState(() => ({
-    posse: window.matchMedia?.('(min-width: 1280px)').matches ?? true,
+    // Open from the start only where it can't cover the piles or my hand.
+    posse: window.matchMedia?.('(min-width: 1600px)').matches ?? true,
     log: false,
     last: 'posse' as 'posse' | 'log',
   }));
@@ -260,7 +262,21 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   useEffect(() => {
     if (phone && docks.posse && docks.log) setDocks((d) => ({ ...d, [d.last === 'posse' ? 'log' : 'posse']: false }));
   }, [phone, docks.posse, docks.log]);
-  const sides = roomy && opponents.length >= 2;
+  // Landscape layouts put the piles beside my hand instead of above it, so cards can be taller:
+  // short screens (phones on their side) give my hand the full height on the left; wider ones
+  // keep the opponents on top and sit the piles and my hand side by side below them.
+  const short = useMediaQuery('(orientation: landscape) and (max-height: 520px)');
+  const wide = useMediaQuery('(orientation: landscape) and (min-width: 900px)') && !short;
+  // On landscape tablets and laptops, side seats cost the width the piles and my hand need, so
+  // everyone sits across the top; big monitors have room to seat them around the table.
+  const big = useMediaQuery('(min-width: 1600px) and (min-height: 860px)');
+  const sides = roomy && opponents.length >= 2 && (!wide || big);
+  const tableRef = useRef<HTMLElement>(null);
+  const layoutKey = [
+    view.players.map((p) => p.slots.length).join(','),
+    sides, short, wide, spectator, !!view.result,
+  ].join('|');
+  useFitCards(tableRef, layoutKey);
   const perSide = !sides ? 0 : opponents.length >= 5 ? 2 : 1;
   const leftSeats = opponents.slice(0, perSide).reverse();
   const topSeats = opponents.slice(perSide, opponents.length - perSide);
@@ -318,7 +334,11 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         )}
       </header>
 
-      <section className={`table ${view.phase === 'snap' ? 'table--snap' : ''} ${sides ? 'table--sides' : ''}`} aria-label="Card table">
+      <section
+        ref={tableRef}
+        className={`table ${view.phase === 'snap' ? 'table--snap' : ''} ${sides ? 'table--sides' : ''} ${short ? 'table--short' : ''} ${short && opponents.length >= 5 ? 'table--crowded' : ''} ${wide ? 'table--wide' : ''}`}
+        aria-label="Card table"
+      >
         {caboBanner && (
           <div className="cabo-banner" role="status">
             CABO!<small>{name(caboBanner)} called it — last round</small>

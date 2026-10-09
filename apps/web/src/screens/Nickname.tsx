@@ -40,7 +40,7 @@ export function Nickname({ onSession, onBack }: { onSession: (s: NewSession) => 
         <input
           className="input"
           value={name}
-          maxLength={20}
+          maxLength={8}
           placeholder="What do folks call you?"
           onChange={(e) => setName(e.target.value)}
           autoFocus
