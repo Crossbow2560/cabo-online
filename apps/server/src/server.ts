@@ -54,6 +54,8 @@ export interface ServerOptions {
   webDist?: string;
   /** Public address players use, e.g. https://cabo.nishit-db.com — used for invite links. */
   publicUrl?: string | null;
+  /** Umami analytics for the client to load (both set, or off). */
+  umami?: { scriptUrl: string; websiteId: string } | null;
 }
 
 export async function createCaboServer(opts: ServerOptions) {
@@ -104,8 +106,9 @@ export async function createCaboServer(opts: ServerOptions) {
 
   // Runtime config for the client (read at startup, so one build works on any domain).
   const publicUrl = opts.publicUrl?.replace(/\/+$/, '') || null;
+  const umami = opts.umami ?? null;
   app.get('/api/config', (_req, res) => {
-    res.json({ publicUrl });
+    res.json({ publicUrl, umami });
   });
 
   app.get('/api/session', async (req, res) => {

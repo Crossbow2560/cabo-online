@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { Ack, ClientToServer, GameEvent, PlayerView, RoomState, ServerToClient } from '@cabo/engine';
 import { DesertBackdrop } from './components/DesertBackdrop';
 import { RotateOverlay } from './components/RotateOverlay';
 import { RulesModal } from './components/RulesModal';
 import { Game } from './Game';
+import { track } from './lib/analytics';
 import { captureMotion, captureReveal } from './lib/motion';
 import { Landing } from './screens/Landing';
 import { Nickname } from './screens/Nickname';
@@ -183,6 +184,15 @@ function Connected({ session, onSignOut, onRules, onBack }: {
     return () => clearTimeout(t);
   }, [error]);
 
+  // Analytics: a finished game is counted once, by the host (everyone sees the same standings).
+  const trackedFinal = useRef<RoomState['final']>(null);
+  useEffect(() => {
+    const f = room?.final;
+    if (!f || f === trackedFinal.current || room.hostId !== session.sessionId) return;
+    trackedFinal.current = f;
+    track('game_finished', { rounds: f.rounds, players: f.standings.length, reason: f.reason });
+  }, [room?.final]);
+
   if (replaced) {
     return (
       <main className="screen">
@@ -226,9 +236,9 @@ function Connected({ session, onSignOut, onRules, onBack }: {
         <Rooms
           nickname={session.nickname}
           initialCode={urlCode}
-          onCreate={() => call<{ code: string }>((ack) => socket.emit('room:create', ack))}
-          onJoin={(code) => call<{ code: string }>((ack) => socket.emit('room:join', { code }, ack))}
-          onSpectate={(code) => call<{ code: string }>((ack) => socket.emit('room:spectate', { code }, ack))}
+          onCreate={() => call<{ code: string }>((ack) => socket.emit('room:create', ack)).then((r) => r.ok && track('room_created'))}
+          onJoin={(code) => call<{ code: string }>((ack) => socket.emit('room:join', { code }, ack)).then((r) => r.ok && track('room_joined', { invite: code === urlCode }))}
+          onSpectate={(code) => call<{ code: string }>((ack) => socket.emit('room:spectate', { code }, ack)).then((r) => r.ok && track('room_spectated'))}
           onChangeName={onSignOut}
           onBack={onBack}
         />
@@ -236,9 +246,9 @@ function Connected({ session, onSignOut, onRules, onBack }: {
         <Lobby
           room={room}
           me={session.sessionId}
-          onStart={() => call((ack) => socket.emit('room:start', ack))}
+          onStart={() => call((ack) => socket.emit('room:start', ack)).then((r) => r.ok && track(room.status === 'lobby' ? 'game_started' : 'round_started', { players: room.players.length, bots: room.players.filter((p) => p.bot).length }))}
           onLeave={leave}
-          onAddBot={(level) => call((ack) => socket.emit('room:addBot', { level }, ack))}
+          onAddBot={(level) => call((ack) => socket.emit('room:addBot', { level }, ack)).then((r) => r.ok && track('bot_added', { level }))}
           onRemoveBot={(id) => call((ack) => socket.emit('room:removeBot', { id }, ack))}
           onSettings={(s) => call((ack) => socket.emit('room:settings', s, ack))}
           watching={watching}
@@ -250,7 +260,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           socket={socket}
           log={log}
           call={call}
-          onStart={() => call((ack) => socket.emit('room:start', ack))}
+          onStart={() => call((ack) => socket.emit('room:start', ack)).then((r) => r.ok && track(room.status === 'lobby' ? 'game_started' : 'round_started', { players: room.players.length, bots: room.players.filter((p) => p.bot).length }))}
           onLeave={leave}
           onRules={onRules}
         />

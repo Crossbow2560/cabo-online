@@ -1,11 +1,16 @@
 import { useEffect, useState } from 'react';
 
-let cached: Promise<string | null> | null = null;
+/** Runtime settings from the server (read at startup, so one build works on any domain). */
+export interface ClientConfig {
+  publicUrl: string | null;
+  umami: { scriptUrl: string; websiteId: string } | null;
+}
 
-function loadPublicUrl() {
+let cached: Promise<ClientConfig | null> | null = null;
+
+export function loadConfig(): Promise<ClientConfig | null> {
   cached ??= fetch('/api/config')
     .then((r) => (r.ok ? r.json() : null))
-    .then((c: { publicUrl?: string | null } | null) => c?.publicUrl ?? null)
     .catch(() => null);
   return cached;
 }
@@ -15,7 +20,7 @@ export function usePublicUrl(): string {
   const [url, setUrl] = useState(location.origin);
   useEffect(() => {
     let live = true;
-    loadPublicUrl().then((u) => live && u && setUrl(u));
+    loadConfig().then((c) => live && c?.publicUrl && setUrl(c.publicUrl));
     return () => {
       live = false;
     };

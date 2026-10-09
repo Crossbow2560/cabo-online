@@ -9,3 +9,41 @@ services:
     env_file:
       - path: apps/server/.env
         required: false
+
+  # ---- Umami (self-hosted, cookie-free analytics). Off unless asked for:
+  #   docker compose --profile analytics up -d
+  # Secrets live in umami.env (gitignored; see docs/analytics.md). Dashboard: http://localhost:3200
+  umami:
+    image: ghcr.io/umami-software/umami:latest
+    profiles: [analytics]
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3200:3000" # 3000 is often taken by other dev servers
+    env_file:
+      - path: umami.env
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/api/heartbeat || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  umami-db:
+    image: postgres:15-alpine
+    profiles: [analytics]
+    restart: unless-stopped
+    env_file:
+      - path: umami.env
+    volumes:
+      - umami-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  umami-db-data:
