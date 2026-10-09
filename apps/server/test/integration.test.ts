@@ -110,13 +110,14 @@ async function startAndReady(bots: Bot[]) {
 }
 
 describe('server', () => {
-  it('/api/config reports PUBLIC_URL (trailing slash trimmed), or null when unset', async () => {
+  it('/api/config reports PUBLIC_URL (trailing slash trimmed) and Umami, or null when unset', async () => {
     const plain = await start();
-    expect(await (await fetch(`${plain.url}/api/config`)).json()).toEqual({ publicUrl: null });
-    const server = await createCaboServer({ store: new MemoryStore(), publicUrl: 'https://cabo.nishit-db.com/' });
+    expect(await (await fetch(`${plain.url}/api/config`)).json()).toEqual({ publicUrl: null, umami: null });
+    const umami = { scriptUrl: 'https://stats.nishit-db.com/script.js', websiteId: '0b9d3f58-3c1e-4c8f-9a51-6f1c2d7e8a90' };
+    const server = await createCaboServer({ store: new MemoryStore(), publicUrl: 'https://cabo.nishit-db.com/', umami });
     servers.push(server);
     const port = await server.listen(0);
-    expect(await (await fetch(`http://localhost:${port}/api/config`)).json()).toEqual({ publicUrl: 'https://cabo.nishit-db.com' });
+    expect(await (await fetch(`http://localhost:${port}/api/config`)).json()).toEqual({ publicUrl: 'https://cabo.nishit-db.com', umami });
   });
 
   it('a store outage is a retryable 503 / "unavailable", never a 401 that would wipe the token', async () => {

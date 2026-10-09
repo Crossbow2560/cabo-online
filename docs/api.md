@@ -27,7 +27,7 @@ Checks a stored token and says whether the player is seated somewhere.
 ### `GET /api/config`
 Runtime configuration for the client.
 
-- **200:** `{ "publicUrl": "https://cabo.nishit-db.com" | null }`, from `PUBLIC_URL` with any trailing slash removed.
+- **200:** `{ "publicUrl": "https://cabo.nishit-db.com" | null, "umami": { "scriptUrl": "…/script.js", "websiteId": "…" } | null }`. `publicUrl` comes from `PUBLIC_URL` with any trailing slash removed; `umami` is set only when both `UMAMI_SCRIPT_URL` and `UMAMI_WEBSITE_ID` are (see [analytics.md](analytics.md)).
 
 Any other path serves `apps/web/dist/index.html` (SPA fallback) when the build exists.
 
