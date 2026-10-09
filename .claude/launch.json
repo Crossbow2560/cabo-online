@@ -35,6 +35,33 @@
         "@cabo/server"
       ],
       "port": 3101
+    },
+    {
+      "name": "server-memory",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DATABASE_URL=",
+        "PORT=3102",
+        "npm",
+        "run",
+        "dev",
+        "-w",
+        "@cabo/server"
+      ],
+      "port": 3102
+    },
+    {
+      "name": "web-memory",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "CABO_SERVER=http://localhost:3102",
+        "npm",
+        "run",
+        "dev",
+        "-w",
+        "@cabo/web"
+      ],
+      "port": 5173
     }
   ]
 }

@@ -1488,13 +1488,28 @@ button.pcard:disabled { opacity: 1; }
 .table--short .actions { grid-area: actions; align-self: center; }
 .table--short .seats { grid-area: seats; padding-bottom: 2px; }
 .table--short .felt { grid-area: felt; flex-direction: row; justify-content: center; align-items: center; gap: 12px; }
-.table--short .prompt-strip { --prompt-lines: 4; width: 190px; min-width: 110px; flex-shrink: 1; height: auto; text-align: left; align-items: flex-start; }
+.table--short .prompt-strip { --prompt-lines: 4; width: auto; flex: 1 1 190px; min-width: 80px; max-width: 200px; height: auto; text-align: left; align-items: flex-start; }
+/* narrow phones: everything in the bottom row gives a little so the prompt and piles fit */
+@media (max-width: 680px) {
+  .table--short .prompt-strip { font-size: 11px; padding: 3px 8px; }
+  .table--short .piles { gap: 8px; }
+  .table--short .felt { gap: 8px; }
+  .table--short .actions, .table--short .actions:empty { width: 112px; }
+  .table--short .seat__plate--me { font-size: 10px; padding: 0 6px; }
+  .table.table--short { column-gap: 8px; padding: 6px 10px; }
+}
+
+/* A crowded table on a phone (5+ opponents): their row takes the full width, and my hand sits under
+   it on the left, so neither has to squeeze the other. */
+.table.table--short.table--crowded { grid-template-areas: "seats seats seats" "hand felt actions"; }
 
 /* Phones on their side: smaller plates so a full table of eight still fits one row; captions under
    them would cost a row of height. */
-.table--short .seat__plate:not(.seat__plate--me) { max-width: max(72px, calc(var(--card-sm) * 2.4 + 12px)); font-size: 10px; padding: 0 6px; gap: 4px; }
+.table--short .seat__plate:not(.seat__plate--me) { max-width: calc(var(--card-sm) * 2 + 18px); font-size: 10px; padding: 0 5px; gap: 3px; border-width: 1.5px; }
+.table--short .seat__plate:not(.seat__plate--me) .status-dot { width: 7px; height: 7px; border-width: 1.5px; }
+.table--short .seat { padding: 2px 3px; }
 .table--short .seat__sub { display: none; }
-.table--short .seats { gap: 6px; }
+.table--short .seats { gap: 4px; }
 .table--short .actions .btn { white-space: normal; }
 
 /* Short and wide tables: the latest event shows on one line in the bottom bar, between the docks. */
@@ -1507,7 +1522,7 @@ button.pcard:disabled { opacity: 1; }
 
 /* ======== phones held upright: turn sideways to play ======== */
 .rotate-overlay {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: 1000; /* above the card animations (lib/motion.ts) */
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
   padding: 24px; text-align: center;
   background: var(--leather); color: var(--cream);
@@ -1521,3 +1536,118 @@ button.pcard:disabled { opacity: 1; }
 .rotate-overlay__phone::after { content: ''; position: absolute; left: 50%; bottom: 5px; width: 12px; height: 4px; margin-left: -6px; border-radius: 2px; background: var(--cream); }
 @keyframes rotate-hint { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
 @media (prefers-reduced-motion: reduce) { .rotate-overlay__phone { animation: none; transform: rotate(-90deg); } }
+
+/* ======== phones on their side: the pre-game screens fit one short screen ======== */
+@media (orientation: landscape) and (max-height: 520px) {
+  .screen { gap: 10px; padding: 10px 16px 30px; }
+  .screen .title { font-size: clamp(56px, 24vh, 120px); }
+  .screen .title--md { font-size: clamp(36px, 15vh, 72px); }
+  .tagline { font-size: 15px; padding: 4px 14px; }
+  .greeting { font-size: clamp(20px, 7.5vh, 32px); }
+  .heading { font-size: 24px; }
+  .btn--lg { font-size: 18px; padding: 10px 28px; min-width: 200px; }
+  .footer { bottom: 4px; font-size: 11px; }
+  .back-btn { top: 10px; left: 10px; font-size: 12px; padding: 5px 10px; }
+  .corner-controls { top: 10px; right: 10px; }
+  .screen:has(> .back-btn) { padding-top: 10px; }
+
+  /* main page: Play and Rules side by side */
+  .screen > .stack:not(.panel):not(.lobby__start) { flex-direction: row; gap: 14px; margin-top: 4px !important; }
+
+  /* nickname / room code: a compact card (its badge icon would cost a row) */
+  .panel { padding: 14px 18px; border-radius: 18px; }
+  .panel.stack { gap: 10px; margin-top: 0 !important; }
+  .panel__icon { display: none !important; }
+  .input { font-size: 18px; padding: 8px 12px; }
+  .code-card { gap: 8px; }
+  .code-card__label { font-size: 18px; }
+  .code-input { font-size: 24px; padding-top: 4px; padding-bottom: 4px; }
+  .code-card__hint { font-size: 12px; }
+
+  /* create / join / spectate: three short tiles in a row */
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 210px)); gap: 14px; justify-content: center; max-width: none; }
+  .tile { min-height: 0; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; padding: 10px 12px; border-radius: 18px; }
+  .tile__icon { width: 44px; height: 44px; }
+  .tile__label { font-size: 20px; align-self: auto; }
+  .tile > span:last-child { font-size: 12px; align-self: auto; }
+
+  /* lobby: logo, invite and Start on the left (the "Create Room" heading is dropped: it would only
+     crowd them), the players on the right */
+  .screen--top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    grid-template-rows: auto auto auto;
+    grid-template-areas: "title posse" "share posse" "start posse";
+    align-content: stretch;
+    align-items: center;
+    justify-items: center;
+    column-gap: 16px;
+    row-gap: 8px;
+    padding: 10px 14px 12px;
+  }
+  .screen--top > .title { grid-area: title; }
+  .screen--top > .lobby__heading { display: none; }
+  .screen--top > .share { grid-area: share; width: 100%; padding: 8px 10px; gap: 6px; }
+  .panel.posse { padding: 0; }
+  .screen--top > .posse { grid-area: posse; align-self: stretch; width: 100%; margin-top: 50px; } /* clear of the sound button */
+  .screen--top > .lobby__start { grid-area: start; width: 100%; padding-top: 0; }
+  .copy-field { grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; }
+  .copy-field__row { display: contents; }
+  .copy-field__label { font-size: 11px; white-space: nowrap; }
+  .copy-field__value { padding: 2px 6px; border-width: 2px; border-radius: 8px; }
+  .copy-field__value--url { font-size: 10px; }
+  .copy-field__value--code { font-size: 14px; letter-spacing: 0.14em; padding: 1px 4px 1px calc(4px + 0.14em); text-overflow: clip; }
+  .copy-field__btn { min-width: 0; font-size: 10px; padding: 2px 8px; border-width: 2px; box-shadow: 0 2px 0 var(--saddle-deep); }
+  /* if a phone's fonts run wide, the buttons wrap under the title instead of spilling out */
+  .posse__head { padding: 6px 10px; gap: 4px 8px; flex-wrap: wrap; }
+  .posse__title { font-size: 17px; white-space: nowrap; }
+  .posse__count { font-size: 11px; }
+  .posse__actions { gap: 6px; margin-left: auto; }
+  .posse__head .btn { white-space: nowrap; font-size: 10px; padding: 3px 8px; border-width: 2px; box-shadow: 0 2px 0 var(--saddle-deep); }
+  .posse__cols th { padding: 3px 10px 2px; font-size: 10px; }
+  .posse__table td { padding: 3px 10px; font-size: 13px; }
+  .host-tag { font-size: 10px; margin-left: 6px; }
+  .host-tag__icon { width: 12px; height: 12px; }
+  .you-tag, .bot-tag { font-size: 10px; }
+  .posse__remove { width: 22px; height: 22px; font-size: 11px; }
+  .posse__status-text { display: none; }
+  /* Start: a modest button with the cog beside it, the hint centred under both */
+  .lobby__start { gap: 6px; align-items: center; }
+  .lobby__start-row { width: auto; gap: 8px; align-items: center; }
+  .lobby__start .btn--lg { font-size: 14px; min-width: 0; padding: 6px 22px; border-width: 3px; box-shadow: 0 4px 0 var(--sand); }
+  .lobby__start .lobby__start-row > .btn--primary { flex: 0 0 auto; padding-left: 26px; padding-right: 26px; }
+  .lobby__start .lobby__settings-btn { width: 34px; height: 34px; padding: 0; box-shadow: 0 3px 0 var(--saddle-deep); }
+  .lobby__settings-icon { width: 18px; height: 18px; }
+  .hint { font-size: 10px; text-align: center; }
+}
+
+/* ======== dialogs never run off the screen: a card taller than the screen scrolls ======== */
+.modal > .panel { max-height: calc(100dvh - 24px); overflow-y: auto; scrollbar-color: var(--leather) var(--cream); }
+
+/* Phones on their side: the game settings use the width, points limit beside the timers. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .modal { max-height: calc(100dvh - 16px); }
+  .modal--small:has(.game-settings) { max-width: min(720px, calc(100vw - 24px)); }
+  .modal > .panel { max-height: calc(100dvh - 16px); }
+  .game-settings { grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); align-items: start; column-gap: 20px; row-gap: 8px; padding: 12px 18px; }
+  .game-settings > :not(fieldset) { grid-column: 1 / -1; }
+  .game-settings__title { font-size: 22px; }
+  .game-settings__note { font-size: 12px; }
+  .game-settings__group { gap: 6px; }
+  .game-settings__group legend { font-size: 16px; margin-bottom: 2px; }
+  .game-settings__toggle { font-size: 12px; align-items: flex-start; }
+  .game-settings__toggle input { width: 16px; height: 16px; flex-shrink: 0; }
+  .game-settings__row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 2.8em; gap: 8px; }
+  .game-settings__label { font-size: 13px; }
+  .game-settings__label small { font-size: 10px; }
+  .game-settings__value { font-size: 13px; }
+  .game-settings .confirm__actions .btn { font-size: 14px; padding: 6px 20px; }
+}
+
+/* Phones on their side: the add-bot menu is a compact list, not a tall card. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .panel.bot-menu__list { width: min(210px, calc(100vw - 16px)); padding: 4px; gap: 0; border-radius: 14px; }
+  .bot-menu__item { padding: 4px 8px; gap: 0; border-radius: 8px; }
+  .bot-menu__label { font-size: 13px; line-height: 1.2; }
+  .bot-menu__hint { font-size: 10px; line-height: 1.2; }
+}

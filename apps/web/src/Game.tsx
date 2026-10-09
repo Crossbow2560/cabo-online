@@ -271,8 +271,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   // everyone sits across the top; big monitors have room to seat them around the table.
   const big = useMediaQuery('(min-width: 1600px) and (min-height: 860px)');
   const sides = roomy && opponents.length >= 2 && (!wide || big);
-  // Phones must be on their side to play: in portrait the table is covered until they turn.
-  const portraitPhone = useMediaQuery('(orientation: portrait) and (max-width: 640px) and (pointer: coarse)');
   const tableRef = useRef<HTMLElement>(null);
   const layoutKey = [
     view.players.map((p) => p.slots.length).join(','),
@@ -338,7 +336,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
 
       <section
         ref={tableRef}
-        className={`table ${view.phase === 'snap' ? 'table--snap' : ''} ${sides ? 'table--sides' : ''} ${short ? 'table--short' : ''} ${wide ? 'table--wide' : ''}`}
+        className={`table ${view.phase === 'snap' ? 'table--snap' : ''} ${sides ? 'table--sides' : ''} ${short ? 'table--short' : ''} ${short && opponents.length >= 5 ? 'table--crowded' : ''} ${wide ? 'table--wide' : ''}`}
         aria-label="Card table"
       >
         {caboBanner && (
@@ -453,8 +451,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         <LogDock log={log} open={docks.log} onToggle={() => toggleDock('log')} />
       </footer>
 
-      {portraitPhone && <RotateOverlay />}
-
       <ConfirmDialog
         open={confirmLeave}
         title="Leave the game?"
@@ -472,32 +468,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
         )}
       </ConfirmDialog>
     </main>
-  );
-}
-
-/** Covers the table on a phone held upright: the game only fits, and only plays, sideways. */
-function RotateOverlay() {
-  // Android browsers can turn the screen for us, but only in full screen (and only after a tap).
-  const canLock = !!document.documentElement.requestFullscreen && 'orientation' in screen && 'lock' in (screen.orientation as object);
-  const goLandscape = async () => {
-    try {
-      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-      await (screen.orientation as ScreenOrientation & { lock(o: string): Promise<void> }).lock('landscape');
-    } catch {
-      /* not allowed here: turning the phone by hand still works */
-    }
-  };
-  return (
-    <div className="rotate-overlay" role="alertdialog" aria-labelledby="rotate-title" aria-describedby="rotate-text">
-      <div className="rotate-overlay__phone" aria-hidden />
-      <h2 id="rotate-title" className="heading rotate-overlay__title">Turn your phone sideways</h2>
-      <p id="rotate-text" className="rotate-overlay__text">The table only fits sideways. Turn your phone to keep playing.</p>
-      {canLock && (
-        <button className="btn btn--primary" onClick={goLandscape}>
-          Go full screen
-        </button>
-      )}
-    </div>
   );
 }
 

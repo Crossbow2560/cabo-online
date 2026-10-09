@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import type { Ack, ClientToServer, GameEvent, PlayerView, RoomState, ServerToClient } from '@cabo/engine';
 import { DesertBackdrop } from './components/DesertBackdrop';
+import { RotateOverlay } from './components/RotateOverlay';
 import { RulesModal } from './components/RulesModal';
 import { Game } from './Game';
 import { captureMotion, captureReveal } from './lib/motion';
@@ -116,6 +117,7 @@ export function App() {
       <DesertBackdrop />
       {content}
       <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} />
+      <RotateOverlay />
     </>
   );
 }
