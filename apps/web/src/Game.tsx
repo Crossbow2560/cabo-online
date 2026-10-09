@@ -21,7 +21,6 @@ import type { Orient } from './components/PlayingCard';
 
 type Call = <T>(fn: (ack: (r: Ack<T>) => void) => void) => Promise<Ack<T>>;
 
-
 const ABILITY_BADGE: Record<string, string> = {
   peek_own: '✦ Peek at yours',
   peek_other: '✦ Spy',
@@ -56,24 +55,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   const name = (id: string) => view.players.find((p) => p.id === id)?.name ?? 'a player who left';
 
   useEffect(() => setPick(null), [view.phase, view.currentPlayerId, view.abilityPeeked, view.abilityPeekedMine]);
-
-  // Card animations: play queued moves once the new state is on screen; deal at round start.
-  const dealtRound = useRef<number | null>(null);
-  useLayoutEffect(() => {
-    // Animations are decoration: a glitch in them must never take the table down.
-    try {
-      if (view.phase === 'peek' && view.version === 0 && dealtRound.current !== room.roundNo) {
-        dealtRound.current = room.roundNo;
-        const d = view.players.findIndex((p) => p.id === view.dealerId);
-        const order = view.players.map((_, i) => view.players[(d + 1 + i) % view.players.length].id);
-        playDeal(order, Math.max(...view.players.map((p) => p.slots.length)));
-        return;
-      }
-      playMotions(me);
-    } catch (e) {
-      console.error('[motion]', e);
-    }
-  }, [view.version, view.phase, room.roundNo]);
 
   const act = (action: ClientAction) =>
     call((ack) => socket.emit('game:action', { ...action, expectedVersion: view.version } as ClientAction, ack)).then(() => setPick(null));
@@ -277,6 +258,26 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
     sides, short, wide, spectator, !!view.result,
   ].join('|');
   useFitCards(tableRef, layoutKey);
+
+  // Card animations: play queued moves once the new state is on screen; deal at round start.
+  // Declared after useFitCards so the cards are already at their final size when the animations
+  // measure where to fly (otherwise the deal lands in small slots, then everything jumps bigger).
+  const dealtRound = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    // Animations are decoration: a glitch in them must never take the table down.
+    try {
+      if (view.phase === 'peek' && view.version === 0 && dealtRound.current !== room.roundNo) {
+        dealtRound.current = room.roundNo;
+        const d = view.players.findIndex((p) => p.id === view.dealerId);
+        const order = view.players.map((_, i) => view.players[(d + 1 + i) % view.players.length].id);
+        playDeal(order, Math.max(...view.players.map((p) => p.slots.length)));
+        return;
+      }
+      playMotions(me);
+    } catch (e) {
+      console.error('[motion]', e);
+    }
+  }, [view.version, view.phase, room.roundNo]);
   const perSide = !sides ? 0 : opponents.length >= 5 ? 2 : 1;
   const leftSeats = opponents.slice(0, perSide).reverse();
   const topSeats = opponents.slice(perSide, opponents.length - perSide);
