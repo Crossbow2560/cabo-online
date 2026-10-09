@@ -63,3 +63,31 @@ Umami counts page views, visitors, countries, browsers and devices by itself. Th
 
 No nicknames, room codes or other personal data are sent. Ad-blockers may block the script; the
 game works the same either way.
+
+## Production (self-hosted runner)
+
+Do these once on the server, inside the runner's checkout
+(e.g. `~/actions-runner/_work/cabo-online/cabo-online`, the folder that holds `apps/server/.env`).
+The deploy uses `clean: false`, so untracked files there survive every deploy.
+
+1. Merge/deploy the commit that adds analytics, so the checkout has the new `docker-compose.yml`.
+2. Create `umami.env` with fresh random secrets (see "Run Umami" above).
+3. Make every deploy keep Umami running: create a `.env` **in the checkout root** (Compose reads
+   it automatically; it's gitignored) containing
+
+   ```bash
+   COMPOSE_PROFILES=analytics
+   ```
+
+4. Start it: `docker compose -p cabo up -d umami` (the same project name as the deploy).
+5. Give it a public HTTPS address on the reverse proxy, pointing at `127.0.0.1:3200`
+   (Caddy: `stats.example.com { reverse_proxy localhost:3200 }`; Cloudflare Tunnel:
+   `service: http://127.0.0.1:3200`). The port is bound to localhost only, so the proxy is the
+   only way in.
+6. Open the dashboard there, change the `admin` password, add the website, copy its ID.
+7. Add `UMAMI_SCRIPT_URL=https://stats.example.com/script.js` and `UMAMI_WEBSITE_ID=…` to
+   `apps/server/.env`, then `docker compose -p cabo up -d cabo` (recreating the container picks up
+   the new env).
+
+Back up Umami's data with
+`docker compose -p cabo exec umami-db pg_dump -U umami umami > umami-$(date +%F).sql`.

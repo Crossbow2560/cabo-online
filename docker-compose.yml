@@ -19,7 +19,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "3200:3000" # 3000 is often taken by other dev servers
+      - "127.0.0.1:3200:3000" # this machine only (reach it through the reverse proxy); 3000 is often taken
     env_file:
       - path: umami.env
     depends_on:
