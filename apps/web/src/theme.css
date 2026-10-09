@@ -1445,3 +1445,79 @@ button.pcard:disabled { opacity: 1; }
 /* The bottom bar's Posse / Log cards open upward over the table; keep them above the table's own
    overlays (the pause blur is z-index 30), so they stay sharp and usable while paused. */
 .tfoot { z-index: 35; }
+
+/* ======== one screen, no scrolling: card sizes come from useFitCards ======== */
+/* The table must not widen to fit its contents, or the fitter couldn't see them spill. */
+.table-screen { grid-template-columns: minmax(0, 1fr); }
+/* The opponents' row never scrolls: the fitter shrinks the cards until every seat fits. In the
+   stacked (portrait) layout there's height to spare, so a crowded row wraps onto a second one. */
+.table .seats { overflow: visible; }
+.table:not(.table--sides):not(.table--short):not(.table--wide) { grid-template-columns: minmax(0, 1fr); }
+.table:not(.table--sides):not(.table--short):not(.table--wide) .seats { flex-wrap: wrap; row-gap: 4px; }
+/* Opponents' name plates are no wider than their cards (long names truncate). */
+.seat__plate:not(.seat__plate--me) { max-width: max(96px, calc(var(--card-sm) * 2.4 + 16px)); }
+
+/* Landscape (tablets, laptops): opponents on top (and the sides), then the piles and my hand side by
+   side, my hand in the middle. Two rows of cards instead of three, so every card can be bigger. */
+.table.table--wide {
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "top top top top" ". felt mine .";
+  column-gap: clamp(12px, 2vw, 32px);
+}
+.table.table--wide.table--sides {
+  grid-template-columns: auto minmax(0, 1fr) auto auto minmax(0, 1fr) auto;
+  grid-template-areas: "left top top top top right" "left . felt mine . right";
+}
+.table--wide .seats { grid-area: top; }
+.table--wide .felt { grid-area: felt; flex-direction: column; justify-content: safe center; }
+.table--wide .prompt-strip { width: 260px; height: auto; align-items: center; text-align: center; }
+.table--wide .mine { grid-area: mine; flex-wrap: nowrap; align-self: center; }
+
+/* Phones on their side (short): my hand takes the full height on the left; opponents across the top,
+   then the prompt, piles and buttons in one row beneath them. */
+.table.table--short {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "hand seats seats" "hand felt actions";
+  gap: 2px 12px;
+  padding: 6px 12px;
+}
+.table--short .mine { display: contents; }
+.table--short .mine__hand { grid-area: hand; align-self: center; }
+.table--short .actions { grid-area: actions; align-self: center; }
+.table--short .seats { grid-area: seats; padding-bottom: 2px; }
+.table--short .felt { grid-area: felt; flex-direction: row; justify-content: center; align-items: center; gap: 12px; }
+.table--short .prompt-strip { --prompt-lines: 4; width: 190px; min-width: 110px; flex-shrink: 1; height: auto; text-align: left; align-items: flex-start; }
+
+/* Phones on their side: smaller plates so a full table of eight still fits one row; captions under
+   them would cost a row of height. */
+.table--short .seat__plate:not(.seat__plate--me) { max-width: max(72px, calc(var(--card-sm) * 2.4 + 12px)); font-size: 10px; padding: 0 6px; gap: 4px; }
+.table--short .seat__sub { display: none; }
+.table--short .seats { gap: 6px; }
+.table--short .actions .btn { white-space: normal; }
+
+/* Short and wide tables: the latest event shows on one line in the bottom bar, between the docks. */
+.table--short .toasts, .table--wide .toasts {
+  position: fixed; top: auto; right: auto; bottom: 6px; left: 50%; transform: translateX(-50%);
+  width: min(420px, calc(100vw - 300px)); min-height: 0; display: flex; justify-content: center; z-index: 36;
+}
+.table--short .toast, .table--wide .toast { box-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: 12px; padding: 3px 10px; }
+.table--short .toast:not(:last-child), .table--wide .toast:not(:last-child) { display: none; }
+
+/* ======== phones held upright: turn sideways to play ======== */
+.rotate-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  padding: 24px; text-align: center;
+  background: var(--leather); color: var(--cream);
+}
+.rotate-overlay__title { color: var(--cream); font-size: 28px; }
+.rotate-overlay__text { margin: 0; max-width: 280px; font-weight: 700; }
+.rotate-overlay__phone {
+  width: 54px; height: 90px; border: 5px solid var(--cream); border-radius: 12px; position: relative;
+  animation: rotate-hint 2.4s ease-in-out infinite;
+}
+.rotate-overlay__phone::after { content: ''; position: absolute; left: 50%; bottom: 5px; width: 12px; height: 4px; margin-left: -6px; border-radius: 2px; background: var(--cream); }
+@keyframes rotate-hint { 0%, 25% { transform: rotate(0); } 55%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+@media (prefers-reduced-motion: reduce) { .rotate-overlay__phone { animation: none; transform: rotate(-90deg); } }

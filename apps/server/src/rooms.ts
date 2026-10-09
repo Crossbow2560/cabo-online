@@ -21,7 +21,7 @@ import { BOT_PRESETS, BotBrain } from './bot';
 import type { GameRecord, RoomRecord, Store } from './store';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
-const BOT_NAMES = ['Dusty', 'Calamity', 'Doc', 'Sundance', 'Rattler', 'Tumbleweed', 'Buckshot', 'Belle', 'Cactus', 'Maverick'];
+const BOT_NAMES = ['Dusty', 'Calamity', 'Doc', 'Sundance', 'Rattler', 'Drifter', 'Buckshot', 'Belle', 'Cactus', 'Maverick'];
 /** Everyone memorises for a few seconds; after that, a bot's level sets its pace (BOT_PRESETS). */
 const BOT_READY_DELAY: [number, number] = [2000, 4000];
 

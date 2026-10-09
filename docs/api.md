@@ -7,9 +7,9 @@ The server exposes a small HTTP API for sessions and config, and a Socket.IO API
 ### `POST /api/session`
 Creates a guest session.
 
-- **Request:** `{ "nickname": "Ana" }` (1–20 characters after trimming).
+- **Request:** `{ "nickname": "Ana" }` (1–8 characters after trimming).
 - **200:** `{ "sessionId": "uuid", "nickname": "Ana", "token": "64 hex chars" }`. Keep the token; it's the bearer credential.
-- **400:** `{ "error": "Nickname must be 1-20 characters" }`
+- **400:** `{ "error": "Nickname must be 1-8 characters" }`
 - **503:** `{ "error": "Server busy, try again" }` (store unavailable)
 
 ```bash
