@@ -11,6 +11,7 @@ Creates a guest session.
 - **200:** `{ "sessionId": "uuid", "nickname": "Ana", "token": "64 hex chars" }`. Keep the token; it's the bearer credential.
 - **400:** `{ "error": "Nickname must be 1-8 characters" }`
 - **503:** `{ "error": "Server busy, try again" }` (store unavailable)
+- **429:** `{ "error": "Too many requests, slow down" }` with a `Retry-After` header (more than 10 per minute from one IP)
 
 ```bash
 curl -s -X POST localhost:3101/api/session -H 'content-type: application/json' -d '{"nickname":"Ana"}'
@@ -23,11 +24,25 @@ Checks a stored token and says whether the player is seated somewhere.
 - **200:** `{ "sessionId": "uuid", "nickname": "Ana", "roomCode": "ABC123" | null }`
 - **401:** unknown token. The client clears its token only in this case.
 - **503:** store unavailable. The client keeps the token and retries with backoff.
+- **429:** more than 60 per minute from one IP. Retried like a 503.
 
 ### `GET /api/config`
 Runtime configuration for the client.
 
 - **200:** `{ "publicUrl": "https://cabo.nishit-db.com" | null, "umami": { "scriptUrl": "…/script.js", "websiteId": "…" } | null }`. `publicUrl` comes from `PUBLIC_URL` with any trailing slash removed; `umami` is set only when both `UMAMI_SCRIPT_URL` and `UMAMI_WEBSITE_ID` are (see [analytics.md](analytics.md)).
+
+### Rate limits
+
+All limits are in memory, per server process, over a sliding window. The defaults are in `RATE_LIMITS` (`apps/server/src/server.ts`), and `createCaboServer({ rateLimits })` can override them (or turn them off with `false`, as the tests do). Behind a proxy, set `TRUST_PROXY=1` so the limits key on the real client IP.
+
+| What | Key | Limit | Over the limit |
+|---|---|---|---|
+| `POST /api/session` | IP | 10 / minute | `429` |
+| `GET /api/session` | IP | 60 / minute | `429` |
+| Socket connection | IP | 30 / minute | `connect_error` `rate_limited` |
+| Any socket event | session | 20 / second | ack `{ ok: false, error: 'Slow down' }` |
+| `room:create` / `room:join` / `room:spectate` | session | 10 / minute | ack `Slow down` |
+| `game:snap` (R28) | socket | 5 / second | ack `Slow down` |
 
 Any other path serves `apps/web/dist/index.html` (SPA fallback) when the build exists.
 
@@ -38,6 +53,7 @@ Connect with `io(url, { auth: { token } })`.
 - **Connection errors:**
   - `unauthorized`: bad or missing token. Sign in again.
   - `unavailable`: transient store error. Retry.
+  - `rate_limited`: more than 30 connection attempts per minute from one IP. Retry after a pause.
 - **On every connection:** the server sends the player's current state right away: `room:state` (or `null`) and `game:view` (or `null`).
 - **One socket per session:** opening a second one sends `session:replaced` to the older socket and disconnects it.
 

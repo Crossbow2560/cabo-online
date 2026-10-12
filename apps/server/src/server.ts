@@ -5,6 +5,7 @@ import path from 'node:path';
 import express from 'express';
 import { Server } from 'socket.io';
 import type { Action, BotLevel, ClientAction, ClientToServer, ServerToClient, Timings } from '@cabo/engine';
+import { clientIp, createLimiter, noLimit, type Limit, type Limiter } from './rateLimit';
 import { GameError, RoomManager } from './rooms';
 import type { SessionRecord, Store } from './store';
 
@@ -34,6 +35,21 @@ function parseAction(raw: unknown, playerId: string): Action {
   return out as unknown as Action;
 }
 
+/** Default limits; see docs/api.md. */
+export const RATE_LIMITS = {
+  /** POST /api/session, per IP. */
+  sessionCreate: { limit: 10, windowMs: 60_000 },
+  /** GET /api/session, per IP. */
+  sessionCheck: { limit: 60, windowMs: 60_000 },
+  /** Socket connection attempts, per IP. */
+  handshake: { limit: 30, windowMs: 60_000 },
+  /** Any socket event, per session. */
+  events: { limit: 20, windowMs: 1_000 },
+  /** room:create / room:join / room:spectate, per session. */
+  roomOps: { limit: 10, windowMs: 60_000 },
+} satisfies Record<string, Limit>;
+type RateLimits = { [K in keyof typeof RATE_LIMITS]: Limit };
+
 export interface ServerOptions {
   store: Store;
   timings?: Partial<Timings>;
@@ -51,6 +67,10 @@ export interface ServerOptions {
   defaultMaxPoints?: number | null;
   /** R28: max snaps per socket per second. */
   snapRateLimit?: number;
+  /** Override some limits, or `false` to turn them all off (tests). Snaps (R28) stay limited. */
+  rateLimits?: Partial<RateLimits> | false;
+  /** Behind a reverse proxy: take the client IP from CF-Connecting-IP / X-Forwarded-For. */
+  trustProxy?: boolean;
   webDist?: string;
   /** Public address players use, e.g. https://cabo.nishit-db.com — used for invite links. */
   publicUrl?: string | null;
@@ -60,10 +80,32 @@ export interface ServerOptions {
 
 export async function createCaboServer(opts: ServerOptions) {
   const { store } = opts;
+  const trustProxy = opts.trustProxy ?? false;
+  const limits: Limiter[] = [];
+  const limiter = (name: keyof RateLimits) => {
+    if (opts.rateLimits === false) return noLimit;
+    const l = createLimiter({ ...RATE_LIMITS[name], ...opts.rateLimits?.[name] });
+    limits.push(l);
+    return l;
+  };
+  const snapLimiter = createLimiter({ limit: opts.snapRateLimit ?? 5, windowMs: 1000 }); // R28
+  limits.push(snapLimiter);
+  const handshakeLimiter = limiter('handshake');
+  const eventLimiter = limiter('events');
+  const roomOpLimiter = limiter('roomOps');
+
+  // Express middleware: 429 + Retry-After once an IP is over `l`.
+  const limitByIp = (l: Limiter): express.RequestHandler => (req, res, next) => {
+    const r = l.hit(clientIp(req.headers, req.socket.remoteAddress, trustProxy));
+    if (r.ok) return next();
+    res.set('Retry-After', String(Math.ceil(r.retryAfterMs / 1000)));
+    res.status(429).json({ error: 'Too many requests, slow down' });
+  };
+
   const app = express();
   app.use(express.json({ limit: '10kb' }));
   const http = createHttpServer(app);
-  const io = new Server<ClientToServer, ServerToClient, {}, { session: SessionRecord; snaps: number[] }>(http, {
+  const io = new Server<ClientToServer, ServerToClient, {}, { session: SessionRecord }>(http, {
     cors: { origin: true },
   });
 
@@ -90,7 +132,7 @@ export async function createCaboServer(opts: ServerOptions) {
   if (restored) console.log(`restored ${restored} room(s)`);
 
   // ---- HTTP: guest sessions ----
-  app.post('/api/session', async (req, res) => {
+  app.post('/api/session', limitByIp(limiter('sessionCreate')), async (req, res) => {
     const nickname = String(req.body?.nickname ?? '').trim();
     if (nickname.length < 1 || nickname.length > 8) return res.status(400).json({ error: 'Nickname must be 1-8 characters' });
     const token = randomBytes(32).toString('hex');
@@ -111,7 +153,7 @@ export async function createCaboServer(opts: ServerOptions) {
     res.json({ publicUrl, umami });
   });
 
-  app.get('/api/session', async (req, res) => {
+  app.get('/api/session', limitByIp(limiter('sessionCheck')), async (req, res) => {
     const token = (req.headers.authorization ?? '').replace(/^Bearer /, '');
     let s: SessionRecord | null;
     try {
@@ -133,6 +175,10 @@ export async function createCaboServer(opts: ServerOptions) {
 
   // ---- sockets ----
   io.use(async (socket, next) => {
+    // Before the store lookup, so a flood of handshakes can't turn into a flood of DB queries.
+    if (!handshakeLimiter.hit(clientIp(socket.handshake.headers, socket.handshake.address, trustProxy)).ok) {
+      return next(new Error('rate_limited')); // client retries after a pause
+    }
     const token = socket.handshake.auth?.token;
     let session: SessionRecord | null;
     try {
@@ -143,8 +189,7 @@ export async function createCaboServer(opts: ServerOptions) {
     }
     if (!session) return next(new Error('unauthorized'));
     socket.data.session = session;
-    socket.data.snaps = [];
-    next();
+        next();
   });
 
   io.on('connection', async (socket) => {
@@ -178,11 +223,13 @@ export async function createCaboServer(opts: ServerOptions) {
     }
 
     // Wraps a handler: payload (if any) first, ack callback last; GameErrors become { ok: false }.
+    // Every event counts against the session's budget; `roomOp` events also against the tighter one.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handle = (fn: (payload: any) => unknown) =>
+    const handle = (fn: (payload: any) => unknown, { roomOp = false } = {}) =>
       async (...args: unknown[]) => {
         const reply = (typeof args.at(-1) === 'function' ? args.pop() : () => {}) as (r: unknown) => void;
         try {
+          if (!eventLimiter.hit(sid).ok || (roomOp && !roomOpLimiter.hit(sid).ok)) throw new GameError('Slow down');
           const extra = (await fn(args[0])) as Record<string, unknown> | void;
           reply({ ok: true, ...(extra ?? {}) });
         } catch (e) {
@@ -199,21 +246,21 @@ export async function createCaboServer(opts: ServerOptions) {
       socket.join(`r:${room.rec.code}`);
       rooms.broadcastRoom(room);
       return { code: room.rec.code };
-    }) as never);
+    }, { roomOp: true }) as never);
 
     socket.on('room:join', handle(async (req: { code: string }) => {
       const room = await rooms.join(session, req?.code);
       socket.join(`r:${room.rec.code}`);
       rooms.broadcastRoom(room);
       return { code: room.rec.code };
-    }) as never);
+    }, { roomOp: true }) as never);
 
     socket.on('room:spectate', handle((req: { code: string }) => {
       const room = rooms.spectate(session, req?.code);
       socket.join(`r:${room.rec.code}`);
       rooms.broadcastRoom(room);
       return { code: room.rec.code };
-    }) as never);
+    }, { roomOp: true }) as never);
 
     socket.on('room:leave', handle(async () => {
       const room = rooms.roomOf(sid) ?? rooms.spectatingOf(sid);
@@ -244,11 +291,7 @@ export async function createCaboServer(opts: ServerOptions) {
     socket.on('game:action', handle((raw: ClientAction) => rooms.act(sid, parseAction(raw, sid))) as never);
 
     socket.on('game:snap', handle((req: { windowId: number; ownerId: string; slot: number; reactionMs?: number }) => {
-      const now = Date.now();
-      const limit = opts.snapRateLimit ?? 5;
-      socket.data.snaps = socket.data.snaps.filter((t) => now - t < 1000);
-      if (socket.data.snaps.length >= limit) throw new GameError('Slow down'); // R28
-      socket.data.snaps.push(now);
+      if (!snapLimiter.hit(socket.id).ok) throw new GameError('Slow down'); // R28
       if (!req || !Number.isInteger(req.windowId) || !Number.isInteger(req.slot) || typeof req.ownerId !== 'string') {
         throw new GameError('Bad snap');
       }
@@ -282,6 +325,7 @@ export async function createCaboServer(opts: ServerOptions) {
     },
     async close() {
       rooms.shutdown();
+      limits.forEach((l) => l.stop());
       io.close();
       await new Promise((r) => http.close(r));
     },

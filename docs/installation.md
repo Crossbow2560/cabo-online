@@ -23,6 +23,7 @@
    |---|---|---|
    | `DATABASE_URL` | unset → in-memory | Postgres connection string. For Supabase use the **Session pooler** URI (IPv4-friendly). A transaction pooler on port 6543 also works; prepared statements are disabled automatically. |
    | `PUBLIC_URL` | unset → the page's own address | Address players use, e.g. `https://cabo.nishit-db.com`. Only used for invite links. Don't set it locally. |
+   | `TRUST_PROXY` | unset | `1` behind a reverse proxy or tunnel: rate limits key on the client IP from `CF-Connecting-IP` / `X-Forwarded-For` instead of the proxy's. Only set it if port 3101 isn't reachable directly, or clients could fake their IP. |
    | `PORT` | `3101` | HTTP and Socket.IO port. |
    | `CABO_SEED` | unset | **Testing only.** Deals every round from a fixed seed. The server prints a warning when it's set. Never set it in production. |
 
@@ -62,6 +63,8 @@ Put it behind HTTPS with WebSockets passed through:
 - **Caddy:** `cabo.example.com { reverse_proxy localhost:3101 }`
 - **nginx:** `proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade";`
 - **Cloudflare Tunnel:** `service: http://127.0.0.1:3101`. No CORS headers are needed, because everything is same-origin.
+
+With any of these, set `TRUST_PROXY=1` so rate limits see each player's IP (otherwise every player shares the proxy's). Without it, all players count against one IP's budget.
 
 ### Push-to-deploy (GitHub Actions + self-hosted runner)
 

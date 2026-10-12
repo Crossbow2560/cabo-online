@@ -40,12 +40,17 @@ if (umamiScript && umamiSite) {
   console.warn('Analytics off: set both UMAMI_SCRIPT_URL and UMAMI_WEBSITE_ID');
 }
 
+// Behind Caddy / nginx / a Cloudflare Tunnel, rate limits need the real client IP from the proxy's headers.
+// Only set this when the port isn't reachable directly, or clients could fake their IP.
+const trustProxy = /^(1|true|yes)$/i.test(process.env.TRUST_PROXY?.trim() ?? '');
+if (trustProxy) console.log('Trusting proxy headers for client IPs');
+
 // Dev/testing only: CABO_SEED deals every round from a fixed seed, so the deck order is known.
 const seedEnv = process.env.CABO_SEED?.trim();
 const fixedSeed = seedEnv && Number.isInteger(Number(seedEnv)) ? Number(seedEnv) : null;
 if (fixedSeed !== null) console.warn(`⚠ CABO_SEED=${fixedSeed}: every round deals the SAME deck. For testing only — never set this in production.`);
 
-const server = await createCaboServer({ store, publicUrl, umami, fixedSeed, webDist: path.resolve(here, '../../web/dist') });
+const server = await createCaboServer({ store, publicUrl, umami, fixedSeed, trustProxy, webDist: path.resolve(here, '../../web/dist') });
 const port = await server.listen(Number(process.env.PORT ?? 3101));
 console.log(`Cabo server listening on :${port}`);
 

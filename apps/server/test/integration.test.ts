@@ -30,6 +30,8 @@ async function start(
     snapGraceMs: extra.snapGraceMs ?? 30,
     // Multi-round tests shouldn't trip the points limit; the settings tests set one explicitly.
     defaultMaxPoints: extra.defaultMaxPoints === undefined ? null : extra.defaultMaxPoints,
+    // Test clients fire sessions and events far faster than people; the rate-limit test turns them on.
+    rateLimits: false,
   });
   const port = await server.listen(0);
   servers.push(server);
@@ -118,6 +120,45 @@ describe('server', () => {
     servers.push(server);
     const port = await server.listen(0);
     expect(await (await fetch(`http://localhost:${port}/api/config`)).json()).toEqual({ publicUrl: 'https://cabo.nishit-db.com', umami });
+  });
+
+  it('rate limits: 429 on session floods, "rate_limited" handshakes, "Slow down" acks', async () => {
+    const server = await createCaboServer({
+      store: new MemoryStore(),
+      rateLimits: {
+        sessionCreate: { limit: 3, windowMs: 60_000 },
+        handshake: { limit: 2, windowMs: 60_000 },
+        events: { limit: 5, windowMs: 60_000 },
+        roomOps: { limit: 1, windowMs: 60_000 },
+      },
+    });
+    servers.push(server);
+    const url = `http://localhost:${await server.listen(0)}`;
+    const create = () => fetch(`${url}/api/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ nickname: 'Ana' }),
+    });
+    const ok = await Promise.all([create(), create(), create()]);
+    expect(ok.map((r) => r.status)).toEqual([200, 200, 200]);
+    const over = await create();
+    expect(over.status).toBe(429);
+    expect(Number(over.headers.get('retry-after'))).toBeGreaterThan(0);
+
+    const ana = await bot(url, 'Ana', await ok[0].json().then((s) => ({ id: s.sessionId, token: s.token })));
+    await new Promise((r) => (ana.socket.connected ? r(null) : ana.socket.once('connect', () => r(null))));
+    expect((await ana.emit('room:create')).ok).toBe(true);
+    expect(await ana.emit('room:join', { code: 'ZZZZZZ' })).toEqual({ ok: false, error: 'Slow down' }); // roomOps
+    for (let i = 0; i < 3; i++) await ana.emit('room:pause');
+    expect(await ana.emit('room:pause')).toEqual({ ok: false, error: 'Slow down' }); // events budget
+
+    const { token } = await ok[1].json();
+    const extra = connect(url, { auth: { token }, transports: ['websocket'], forceNew: true, reconnection: false });
+    sockets.push(extra);
+    await new Promise((r) => extra.once('connect', () => r(null))); // second handshake: allowed
+    const third = connect(url, { auth: { token }, transports: ['websocket'], forceNew: true, reconnection: false });
+    sockets.push(third);
+    expect((await new Promise<Error>((res) => third.on('connect_error', res))).message).toBe('rate_limited');
   });
 
   it('a store outage is a retryable 503 / "unavailable", never a 401 that would wipe the token', async () => {
