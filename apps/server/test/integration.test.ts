@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import { io as connect, type Socket } from 'socket.io-client';
 import { cardValue, type PlayerView } from '@cabo/engine';
 import { createCaboServer } from '../src/server';
@@ -159,6 +160,18 @@ describe('server', () => {
     const third = connect(url, { auth: { token }, transports: ['websocket'], forceNew: true, reconnection: false });
     sockets.push(third);
     expect((await new Promise<Error>((res) => third.on('connect_error', res))).message).toBe('rate_limited');
+  });
+
+  it('a session saved before the 8-char limit comes back with its nickname cut to 8', async () => {
+    const store = new MemoryStore();
+    const { server, url } = await start(store);
+    const token = 'legacy-token';
+    await store.createSession('legacy-id', createHash('sha256').update(token).digest('hex'), 'Bartholomew Jones');
+    const s = await (await fetch(`${url}/api/session`, { headers: { authorization: `Bearer ${token}` } })).json();
+    expect(s.nickname).toBe('Bartholo');
+    const ana = await bot(url, 'x', { id: 'legacy-id', token });
+    const { code } = await ana.emit('room:create');
+    expect(server.rooms.rooms.get(code!)!.rec.players.map((p) => p.name)).toEqual(['Bartholo']);
   });
 
   it('a store outage is a retryable 503 / "unavailable", never a 401 that would wipe the token', async () => {

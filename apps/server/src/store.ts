@@ -1,6 +1,10 @@
 import postgres from 'postgres';
 import { BOT_LEVELS, type BotLevel, type GameSettings, type GameState } from '@cabo/engine';
 
+/** Human nicknames are 1-8 chars. Sessions made before the limit (it was 20) may be longer. */
+export const NICKNAME_MAX = 8;
+const clampNickname = (n: string) => n.slice(0, NICKNAME_MAX);
+
 export interface SessionRecord {
   id: string;
   nickname: string;
@@ -47,7 +51,8 @@ export class MemoryStore implements Store {
     this.sessions.set(tokenHash, { id, nickname });
   }
   async findSession(tokenHash: string) {
-    return this.sessions.get(tokenHash) ?? null;
+    const s = this.sessions.get(tokenHash);
+    return s ? { ...s, nickname: clampNickname(s.nickname) } : null;
   }
   async saveRoom(room: RoomRecord) {
     this.rooms.set(room.id, structuredClone(room));
@@ -78,7 +83,7 @@ export class PgStore implements Store {
 
   async findSession(tokenHash: string) {
     const rows = await this.sql<SessionRecord[]>`select id, nickname from guest_sessions where token_hash = ${tokenHash}`;
-    return rows[0] ?? null;
+    return rows[0] ? { ...rows[0], nickname: clampNickname(rows[0].nickname) } : null;
   }
 
   async saveRoom(room: RoomRecord) {
@@ -132,7 +137,11 @@ export class PgStore implements Store {
           status: r.status,
           roundNo: r.round_no,
           dealerIndex: r.dealer_index,
-          players: players.map((p) => ({ sessionId: p.session_id, name: p.nickname, totalScore: p.total_score, ...botFields(p.token_hash) })),
+          players: players.map((p) => {
+            const bot = botFields(p.token_hash);
+            // bot names ("Calamity (bot)") are server-made and exempt from the limit
+            return { sessionId: p.session_id, name: bot.bot ? p.nickname : clampNickname(p.nickname), totalScore: p.total_score, ...bot };
+          }),
           settings: r.settings,
         },
         game: games[0] ? { id: games[0].id, roomId: r.id, roundNo: games[0].round_no, state: games[0].state_snapshot } : null,

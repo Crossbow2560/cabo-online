@@ -7,7 +7,7 @@ import { Server } from 'socket.io';
 import type { Action, BotLevel, ClientAction, ClientToServer, ServerToClient, Timings } from '@cabo/engine';
 import { clientIp, createLimiter, noLimit, type Limit, type Limiter } from './rateLimit';
 import { GameError, RoomManager } from './rooms';
-import type { SessionRecord, Store } from './store';
+import { NICKNAME_MAX, type SessionRecord, type Store } from './store';
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
@@ -134,7 +134,7 @@ export async function createCaboServer(opts: ServerOptions) {
   // ---- HTTP: guest sessions ----
   app.post('/api/session', limitByIp(limiter('sessionCreate')), async (req, res) => {
     const nickname = String(req.body?.nickname ?? '').trim();
-    if (nickname.length < 1 || nickname.length > 8) return res.status(400).json({ error: 'Nickname must be 1-8 characters' });
+    if (nickname.length < 1 || nickname.length > NICKNAME_MAX) return res.status(400).json({ error: `Nickname must be 1-${NICKNAME_MAX} characters` });
     const token = randomBytes(32).toString('hex');
     const id = randomUUID();
     try {
