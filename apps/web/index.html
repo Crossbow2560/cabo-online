@@ -3,8 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cabo</title>
+    <title>Cabo – Free Online Multiplayer Card Game</title>
+    <meta name="description" content="Play Cabo online with 2–8 friends: the memory card game where the lowest hand wins. Free, no sign-up, real-time, on phone, tablet and desktop." />
+    <!-- Every invite link (/?room=ABC123) is the same page as far as search engines go. -->
+    <link rel="canonical" href="https://cabo.nishit-db.com/" />
     <meta name="theme-color" content="#6f4e37" />
+
+    <!-- Link previews (WhatsApp, Discord, iMessage, Slack, X). The domain is hardcoded; see docs/installation.md. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Cabo" />
+    <meta property="og:url" content="https://cabo.nishit-db.com/" />
+    <meta property="og:title" content="Cabo – play the card game online with friends" />
+    <meta property="og:description" content="Create a room, share the link and play in seconds. 2–8 players, lowest hand wins." />
+    <meta property="og:image" content="https://cabo.nishit-db.com/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Cabo – the memory card game, play online with friends" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Cabo – play the card game online with friends" />
+    <meta name="twitter:description" content="Create a room, share the link and play in seconds. 2–8 players, lowest hand wins." />
+    <meta name="twitter:image" content="https://cabo.nishit-db.com/og-image.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": ["VideoGame", "WebApplication"],
+        "name": "Cabo",
+        "url": "https://cabo.nishit-db.com/",
+        "description": "A real-time multiplayer version of Cabo, the memory card game where the lowest hand wins. Play in the browser with 2–8 friends.",
+        "genre": "Card game",
+        "gamePlatform": "Web browser",
+        "operatingSystem": "Web browser",
+        "applicationCategory": "GameApplication",
+        "playMode": "MultiPlayer",
+        "numberOfPlayers": { "@type": "QuantitativeValue", "minValue": 2, "maxValue": 8 },
+        "image": "https://cabo.nishit-db.com/og-image.png",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
     <!-- The card back doubles as the game's logo. -->
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
@@ -14,7 +51,34 @@
     <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Crawlable description of the game. React replaces this when the app mounts. -->
+      <main style="max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; font-family: Nunito, system-ui, sans-serif; color: #6f4e37; line-height: 1.5">
+        <h1>Cabo – the online card game</h1>
+        <p>
+          Cabo is a memory card game for 2 to 8 players where the lowest hand wins. This is a free, real-time
+          multiplayer version you play in the browser on your phone, tablet or computer. No sign-up and no download.
+        </p>
+        <h2>How to play Cabo</h2>
+        <p>
+          Everyone is dealt four face-down cards and peeks at the two nearest ones. On your turn, draw a card and
+          either swap it into your grid or discard it. Discarding certain cards uses their ability: a 7 or 8 lets you
+          peek at one of your own cards, a 9 or 10 lets you spy on an opponent's card, a Jack or Queen makes a blind
+          swap, and a black King lets you look at two cards and swap them.
+        </p>
+        <p>
+          Whenever a card is discarded, anyone can snap a card of the same rank from their hand, but a wrong snap
+          costs a penalty card. When you think your hand is the lowest, call CABO: everyone else gets one last turn,
+          then the cards are revealed and the lowest total wins the round.
+        </p>
+        <h2>Play with friends</h2>
+        <p>
+          Pick a nickname, create a room and share the invite link. Friends join straight from the link, and running
+          scores are kept across rounds.
+        </p>
+        <noscript><p><strong>Enable JavaScript to play Cabo.</strong></p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

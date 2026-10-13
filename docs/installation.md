@@ -84,3 +84,12 @@ One-time setup:
 5. Re-run the workflow.
 
 If the repository is public, set "Fork pull request workflows" to require approval, because a self-hosted runner executes code on your machine.
+
+### Custom domain and SEO
+
+The production origin `https://cabo.nishit-db.com` is hardcoded in the static SEO files, because they're served as-is and can't read `PUBLIC_URL`. If you deploy on another domain, update it in:
+- `apps/web/index.html`: the canonical link, the Open Graph/Twitter tags and the JSON-LD block
+- `apps/web/public/robots.txt`: the `Sitemap:` line
+- `apps/web/public/sitemap.xml`
+
+The text inside `<div id="root">` in `index.html` is a crawlable description of the game. React replaces it on mount, so players never see it. `apps/web/public/og-image.png` (1200×630) is the link-preview image.
