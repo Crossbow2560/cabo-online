@@ -43,7 +43,8 @@ These are unit tests against the pure reducer. Each builds a game with a fixed s
 ## Server integration tests (`apps/server/test/integration.test.ts`)
 
 These start a real server on a random port (`createCaboServer` with short timings) and drive it with `socket.io-client` bots.
-- **Sessions and auth:** invalid tokens are rejected, and `/api/config` returns the right value. A store outage returns 503 / `unavailable` (never 401).
+- **Sessions and auth:** invalid tokens are rejected, and `/api/config` returns the right value. A store outage returns 503 / `unavailable` (never 401). A session saved before the 8-character limit comes back with its nickname cut to 8, in `/api/session` and in the room.
+- **Rate limits:** session floods get `429`, too many handshakes get `rate_limited`, and room operations and the per-session event budget answer `Slow down`. Every other test starts the server with `rateLimits: false`, so only this one exercises them (the snap limit stays on everywhere).
 - **Full game:** 3 bots play a whole round ending in Cabo, and the scores match the revealed cards.
 - **Snap races:**
   - snaps are ordered by reaction time, so a later-arriving but faster snap wins, and the loser gets a private "too slow" with no penalty;

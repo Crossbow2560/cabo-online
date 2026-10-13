@@ -2,7 +2,7 @@
 
 ## Starting a game
 
-1. Open the site and choose **Play now**, then enter a nickname. Your identity is saved in this browser, so reloading keeps your seat.
+1. Open the site and choose **Play now**, then enter a nickname (up to 8 characters). Your identity is saved in this browser, so reloading keeps your seat.
 2. Choose **Create room**. The lobby shows an **invite link** and a **room code**, each with a Copy button.
 3. Friends open the link, which goes straight to the **Join Room** page with the code filled in, or tap **Join room** and type the code there.
 4. The host presses **Start game** once there are 2–8 players. Short of players? The host can press **+ Add bot** in the lobby and pick a level: Beginner, Novice, Intermediate or Expert (**✕** removes one). Bots play at a human pace from only what their seat can see. See [bots](bots.md).
@@ -57,6 +57,7 @@ The same browser profile is always the same player. To test alone, use private w
 - Your hand is at the bottom, numbered #1–#4. Penalty cards are added as #5, #6 and so on in extra columns.
 - Opponents' hands are turned to face you: a player across the table shows their `1 2 / 3 4` as `4 3 / 2 1`. On large screens with 3+ players they sit left, top and right, clockwise from your left. Players on the left and right have their cards turned sideways, facing them. Phones keep everyone on top.
 - Every card movement is animated, and the card that just changed glows for a moment. Swaps lift and glow both cards before they cross.
+- **On a phone**, the game is played sideways: holding it upright shows "Turn your phone sideways" over every screen. On Android, **Go full screen** turns it for you. Card sizes adjust to fit everything on one screen, and the Posse and Log cards open one at a time.
 - **Posse** (bottom-left) shows online status, away countdowns and totals. **Log** (bottom-right) shows the full event history, and messages marked "just you" are private. **?** opens the rules.
 
 ## Sound
@@ -106,4 +107,6 @@ When someone reaches the limit, the round results say so and the host gets **See
 | "Game state changed, try again" | The screen was a step behind (e.g. a double tap). Just act again. |
 | "Too slow — the snap window is closed" | Someone else snapped first, or the 3.5s window ended. No penalty. |
 | Stuck on "Saddling up…" | The client is waiting for the server. It retries automatically, so check the server is running and reachable. |
+| "Slow down" / "Too many requests" | Too many actions or sign-ins in a short time. Wait a moment; the client retries reconnects on its own. Players behind one shared IP may hit the per-IP limits sooner if the server isn't configured with `TRUST_PROXY` behind its proxy. |
+| "Turn your phone sideways" won't go away | The game needs landscape on phones. Check the phone's rotation lock. |
 | Invite link shows the wrong address | Set `PUBLIC_URL` on the server (see [installation](installation.md)). |

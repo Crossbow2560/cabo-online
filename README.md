@@ -1,6 +1,6 @@
 # Cabo
 
-A real-time multiplayer web version of **Cabo**, the memory card game where the lowest hand wins. Wild-west themed, playable in the browser on desktop, tablet and phone.
+A real-time multiplayer web version of **Cabo**, the memory card game where the lowest hand wins. Wild-west themed, playable in the browser on desktop, tablet and phone (held sideways).
 
 ## 📚 Documentation
 | | |
@@ -43,11 +43,12 @@ Open http://localhost:5173, pick a nickname, create a room, and open the invite 
 - **Database:** Supabase Postgres, accessed through `postgres` (postgres.js), with an in-memory fallback.
 - **Testing:** Vitest, with `socket.io-client` bots for the integration tests.
 - **Deployment:** Docker (a single container) and a GitHub Actions workflow that deploys through a self-hosted runner.
+- **Ops:** in-memory rate limiting (HTTP, socket handshakes and events), and optional self-hosted [Umami](https://umami.is) analytics behind a Compose profile.
 
 ## Quick installation
 
 1. `npm install`
-2. Optional: create `apps/server/.env` with `DATABASE_URL` (Supabase session pooler) and `PUBLIC_URL`.
+2. Optional: create `apps/server/.env` with `DATABASE_URL` (Supabase session pooler), `PUBLIC_URL` and, behind a proxy, `TRUST_PROXY=1`. Apply `supabase/migrations/0001`–`0004` once.
 3. Run `npm run dev:server` and `npm run dev:web`, or `docker compose up -d --build` for production.
 
 Details: [docs/installation.md](docs/installation.md)
@@ -62,10 +63,10 @@ A pure rules engine (`packages/engine`) turns `(state, action, now)` into a new 
 packages/engine/   rules engine, redaction, protocol types (+ tests)
 apps/server/       Express + Socket.IO game server, room manager, Postgres store (+ tests)
 apps/web/          React client: screens, table, card animations, theme
-supabase/          SQL migrations
+supabase/          SQL migrations (0001–0004)
 .github/workflows/ test + deploy pipeline
-tools/            browser-bot.js: in-page bot for playtesting against humans
-Dockerfile, docker-compose.yml
+tools/             browser-bot.js: in-page bot for playtesting against humans
+Dockerfile, docker-compose.yml (game + optional Umami), umami.env.example
 ```
 
 More: [docs/structure.md](docs/structure.md)

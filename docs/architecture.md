@@ -11,6 +11,8 @@
                   ── game:action ──▶    kick timers        │
                   ── game:snap ────▶                       └── persist() ───────▶
  HTTP: /api/session, /api/config  ──▶  Express
+                                       (rate limits on HTTP, handshakes and events)
+ lib/analytics.ts ── track() ─────▶  Umami (optional, self-hosted, separate container)
 ```
 
 There are three layers, each with one job:
@@ -54,6 +56,7 @@ There are three layers, each with one job:
   - Express routes: `POST /api/session` and `GET /api/session` for guest sessions, and `GET /api/config` for the runtime `PUBLIC_URL`. It also serves static files from `apps/web/dist`.
   - Socket.IO auth middleware: resolves a session from a hashed token.
   - Event handlers: shape-check the input (`parseAction`); the engine does all rule checks.
+  - **Rate limits** (`rateLimit.ts`, defaults in `RATE_LIMITS`): in-memory sliding windows. Session HTTP routes and socket handshakes are keyed by IP, and the handshake limit runs *before* the store lookup so a flood can't become a flood of DB queries. Every socket event spends a per-session budget, room create/join/spectate a smaller one, and snaps a per-socket one (R28). Over the limit is a `429`, `connect_error: rate_limited` or a `Slow down` ack. `clientIp` reads `CF-Connecting-IP` / `X-Forwarded-For` only when `TRUST_PROXY` is set.
 - **`rooms.ts` (`RoomManager`):**
   - **Room lifecycle:** create, join, leave, start (with dealer rotation).
   - **`apply()`:** runs the engine, then fans out views, public logs (`r:<code>`) and private logs (`s:<sessionId>`). It adds round scores to running totals and persists.
@@ -61,7 +64,7 @@ There are three layers, each with one job:
   - **Kick timers:** a player who stays offline for 5 minutes is removed.
   - **Restore on boot:** open rooms and their latest game snapshot are rehydrated.
 - **`bot.ts` (`BotBrain`):** a server bot's player logic. `RoomManager` feeds it the events its seat would receive and asks it for a move from `redactFor(state, botId)` after every change, then applies that move after a human-like delay, through the same `applyAction` path as any player. See [bots](bots.md).
-- **`store.ts`:** a `Store` interface with two implementations. `PgStore` (postgres.js) writes transactional room upserts and version-guarded game snapshots. `MemoryStore` is used when `DATABASE_URL` is unset.
+- **`store.ts`:** a `Store` interface with two implementations. `PgStore` (postgres.js) writes transactional room upserts and version-guarded game snapshots. `MemoryStore` is used when `DATABASE_URL` is unset. Both trim human nicknames to `NICKNAME_MAX` (8) on read, so sessions created under the old 20-character limit fit the table; bot names (`Calamity (bot)`) are exempt.
 - **Ordering:** `applyAction` is synchronous, and Node runs one socket handler at a time, so actions are applied strictly in arrival order with no locks. The exception is snaps: a window's snaps are gathered and replayed in reaction-time order once everyone has answered (see [decisions](decisions.md)). Persistence is chained per room (`persistChain`), so snapshots land in order without blocking gameplay.
 
 ## The client (`apps/web`)
@@ -70,6 +73,8 @@ There are three layers, each with one job:
   - A screen state machine: `landing` → `nickname` → `play`.
   - Holds the guest token in `localStorage`. Only a 401 clears it; 5xx and network errors are retried.
   - Owns the socket. The client waits for the server's first `room:state` after every (re)connect ("Saddling up…"), so it never renders a stale table.
+  - Renders `RotateOverlay` over every screen on a phone held upright: the game is landscape-only on phones. Where the browser allows it (Android), it offers full screen plus an orientation lock.
+  - Calls `initAnalytics()` and `track()` (`lib/analytics.ts`). The Umami script is injected only if `/api/config` returns an `umami` block.
 - **Screens:**
   - `Landing`
   - `Nickname`
@@ -80,6 +85,8 @@ There are three layers, each with one job:
   - Maps each tap to an action (`onCard`, tapping the stock or discard) and works out which cards are tappable (`canTap`).
   - Seats opponents around the table. On large screens with 3+ players they sit left, top and right, clockwise from your left.
   - Turns each opponent's hand to face you (`slotPosition` with `Orient`).
+  - Picks one of several layouts from media queries: `short` (phones on their side: my hand takes the full height on the left), `wide` (landscape tablets and laptops: opponents on top, piles beside my hand) and `big` (≥1600×860: side seats). On phones the Posse and Log cards are exclusive, so opening one closes the other.
+- **`lib/useFitCards.ts`:** CSS can't know how many seats, cards and buttons share a row, so this measures. It binary-searches the largest card size at which every seat, pile, hand and button fits inside its row and the table, in three passes (everything together; then my hand and piles alone; then opponents, capped at 0.8 of mine), and writes `--card-lg/md/sm` on the table. It reruns when the layout key changes (hand sizes, layout mode, spectating, results).
 - **`lib/motion.ts`:**
   - When an event arrives, `captureMotion` records the current on-screen position and look of every card involved (before React re-renders).
   - After render, `playMotions` flies two-sided cards from old to new, turning them over mid-air when face-up changes to face-down or back. It also plays swaps with a lift-and-glow phase and peeks (lifted to the peeker; tipped toward them for onlookers), and glides any cards the layout shifted.
@@ -99,8 +106,8 @@ Migrations are in `supabase/migrations`. Row-level security is enabled with **no
 
 | Table | Purpose |
 |---|---|
-| `guest_sessions` | `id`, `token_hash` (sha256 of the bearer token), `nickname` |
-| `rooms` | `code`, `host_session_id`, `status` (lobby/playing/finished/closed), `round_no`, `dealer_index` |
+| `guest_sessions` | `id`, `token_hash` (sha256 of the bearer token, or `bot:<level>:<id>` for bots), `nickname` (the column allows 20 for bot names; humans are limited to 8 by the API) |
+| `rooms` | `code`, `host_session_id`, `status` (lobby/playing/finished/closed), `round_no`, `dealer_index`, `settings` (jsonb, lobby ⚙) |
 | `room_players` | seat order and `total_score` per room |
 | `games` | one row per round: `state_snapshot` (jsonb, the full authoritative state), `version`, `ended_at` |
 

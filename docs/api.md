@@ -21,7 +21,7 @@ curl -s -X POST localhost:3101/api/session -H 'content-type: application/json' -
 Checks a stored token and says whether the player is seated somewhere.
 
 - **Header:** `Authorization: Bearer <token>`
-- **200:** `{ "sessionId": "uuid", "nickname": "Ana", "roomCode": "ABC123" | null }`
+- **200:** `{ "sessionId": "uuid", "nickname": "Ana", "roomCode": "ABC123" | null }`. A nickname saved before the 8-character limit comes back trimmed to 8.
 - **401:** unknown token. The client clears its token only in this case.
 - **503:** store unavailable. The client keeps the token and retries with backoff.
 - **429:** more than 60 per minute from one IP. Retried like a 503.

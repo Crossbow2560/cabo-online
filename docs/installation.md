@@ -26,11 +26,15 @@
    | `TRUST_PROXY` | unset | `1` behind a reverse proxy or tunnel: rate limits key on the client IP from `CF-Connecting-IP` / `X-Forwarded-For` instead of the proxy's. Only set it if port 3101 isn't reachable directly, or clients could fake their IP. |
    | `PORT` | `3101` | HTTP and Socket.IO port. |
    | `CABO_SEED` | unset | **Testing only.** Deals every round from a fixed seed. The server prints a warning when it's set. Never set it in production. |
+   | `UMAMI_SCRIPT_URL`, `UMAMI_WEBSITE_ID` | unset → no analytics | Optional self-hosted Umami. Both must be set; see [analytics](analytics.md). |
+
+   The web dev server reads one variable of its own: `CABO_SERVER` (default `http://localhost:3101`), the server Vite proxies to. Use it to point the client at a second server, e.g. an in-memory one on another port.
 
 3. Database (only when using `DATABASE_URL`). Apply the migrations once, in the Supabase SQL editor or with the CLI:
    ```bash
-   psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_fk_indexes.sql -f supabase/migrations/0003_room_settings.sql
+   psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql -f supabase/migrations/0002_fk_indexes.sql -f supabase/migrations/0003_room_settings.sql -f supabase/migrations/0004_clamp_nicknames.sql
    ```
+   On an existing database, apply only the ones it doesn't have yet. `0004` trims nicknames saved before the 8-character limit; the server also trims them on read, so it's tidy-up rather than required.
 4. Run it in two terminals:
    ```bash
    npm run dev:server

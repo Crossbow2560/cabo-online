@@ -45,6 +45,26 @@ There are no accounts; a nickname returns a random token, and the server stores 
 - Only a 401 clears the stored token. A 5xx or network error (e.g. during a deploy) retries instead of logging the player out.
 - `?profile=<name>` switches to a separate storage key (`cabo.token.<name>`), so several players can share one browser. It exists for playtesting with bots ([bots](bots.md)) and grants nothing a private window wouldn't.
 
+## Rate limits in memory, per process
+Guest sessions are free to create and sockets are long-lived, so the cheap abuse paths are session floods, handshake floods (each one costs a store lookup) and event spam. `rateLimit.ts` is a small sliding-window limiter kept in a `Map`, swept periodically so idle keys don't pile up.
+- **Keys:** HTTP and handshakes by IP, since there's no session yet; events by session, so reconnecting doesn't reset a budget; snaps by socket (R28).
+- **Handshake limit before auth:** a refused handshake never reaches the database.
+- **Proxy IPs are opt-in (`TRUST_PROXY`):** behind Cloudflare or nginx every request comes from the proxy, but trusting `X-Forwarded-For` on a directly reachable port would let clients pick their own IP.
+- **Errors match existing retry paths:** `429` and `rate_limited` are retried by the client like a 503 / `unavailable`, never treated as a bad token.
+
+**Trade-off:** limits reset on restart and don't add up across instances. That matches the single-instance deployment; a second instance would need Redis for this too.
+
+## Nicknames are 1–8 characters
+Opponents' names sit under small hands on a phone held sideways, so the limit dropped from 20 to 8. The API enforces it on creation (`NICKNAME_MAX`), and older sessions are trimmed **on read** in both stores rather than rejected, so nobody gets logged out. Migration `0004` trims the stored rows too. The column check stays at 20 because server-made bot names (`Calamity (bot)`) are longer and are exempt.
+
+## Phones: landscape only, cards sized by measurement
+- **Landscape only:** four rows of cards (opponents, piles, prompt, my hand) don't fit a portrait phone at a tappable size. `RotateOverlay` covers every screen, not just the table, so players turn the phone before they reach a game.
+- **Measured card sizes:** the number of opponents, penalty cards and buttons all change the space available, so fixed breakpoints either overflow or waste room. `useFitCards` measures the real DOM and searches for the largest size that fits, and the motion layer runs after it so animations start from the final positions.
+- **One-cornered card faces:** cards show rank and suit in the top-left corner only, plus a central pip. The mirrored bottom-right index added clutter at phone sizes, and hands are always turned to face their owner, so it carried no information.
+
+## Analytics: optional, self-hosted, cookie-free
+Umami runs as two extra Compose services behind the `analytics` profile, so the default `docker compose up` and the deploy workflow never start it. The client learns about it at runtime from `/api/config` (no rebuild), and `track()` swallows every error, so an ad-blocker can't break the game. Events carry counts and levels only: no nicknames or room codes. See [analytics](analytics.md).
+
 ## Offline handling: kick after 5 minutes, hold the peek
 - **Kick:** a disconnected player keeps their seat and the turn timers auto-play for them. After 5 minutes offline they're removed (`REMOVE_PLAYER`), and fewer than 2 players ends the round as "last one standing".
 - **Peek hold:** the peek phase waits for offline players (up to 60s), so a phone that was reconnecting at the start of a round still gets to see its two cards.
