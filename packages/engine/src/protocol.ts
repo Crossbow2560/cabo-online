@@ -87,6 +87,34 @@ export interface RoomState {
   final: FinalStandings | null;
 }
 
+/** One-tap chat lines. Clients send the id; the server fills in the text. */
+export const QUICK_CHATS = [
+  { id: 'gg', text: 'Good game!' },
+  { id: 'nice', text: 'Nice snap!' },
+  { id: 'hurry', text: 'Giddy up!' },
+  { id: 'oops', text: 'Whoops' },
+  { id: 'lol', text: '😂' },
+  { id: 'cowboy', text: '🤠' },
+  { id: 'thumbs', text: '👍' },
+  { id: 'wave', text: '👋' },
+] as const;
+export type QuickChatId = (typeof QUICK_CHATS)[number]['id'];
+
+export const CHAT_MAX_LEN = 200;
+
+/** A chat line, relayed to everyone in the room (players and spectators). Not stored anywhere. */
+export interface ChatMessage {
+  id: string;
+  fromId: string;
+  fromName: string;
+  /** Sent by someone watching without a seat. */
+  spectator: boolean;
+  text: string;
+  /** Set when this was a quick chat (its id). */
+  quick: QuickChatId | null;
+  at: number;
+}
+
 export type Ack<T = {}> = ({ ok: true } & T) | { ok: false; error: string };
 
 export interface ServerToClient {
@@ -95,6 +123,7 @@ export interface ServerToClient {
   'game:view': (view: PlayerView | null) => void;
   'game:log': (event: GameEvent & { at: number }) => void;
   'session:replaced': () => void;
+  'chat:message': (msg: ChatMessage) => void;
 }
 
 export interface ClientToServer {
@@ -118,4 +147,6 @@ export interface ClientToServer {
   'game:snap': (req: SnapRequest, ack: (r: Ack) => void) => void;
   /** This client's snap window ended without a snap. */
   'game:snapPass': (req: { windowId: number }, ack: (r: Ack) => void) => void;
+  /** Anyone in a room (seated or watching). Text is 1–CHAT_MAX_LEN characters after trimming. */
+  'chat:send': (req: { text: string } | { quick: QuickChatId }, ack: (r: Ack) => void) => void;
 }

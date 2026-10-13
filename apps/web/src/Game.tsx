@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cardLabel, type Ack, type Card, type ClientAction, type PlayerView, type RoomState } from '@cabo/engine';
 import type { CaboSocket, LogLine } from './App';
+import { ChatDock, chatBubbles, type ChatProps } from './components/ChatDock';
 import { ActionBar, blindPick, kingChoice, kingDeciding, type Pick } from './components/ActionBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { LogDock, Toasts } from './components/EventFeed';
@@ -35,7 +36,10 @@ const ABILITY_TEXT: Record<string, string> = {
   look_swap: "Black King: tap another player's card to look at it",
 };
 
-export function Game({ view, room, socket, log, call, onStart, onLeave, onRules }: {
+type DockName = 'posse' | 'log' | 'chat';
+const DOCKS: DockName[] = ['posse', 'log', 'chat'];
+
+export function Game({ view, room, socket, log, call, onStart, onLeave, onRules, chatProps }: {
   view: PlayerView;
   room: RoomState;
   socket: CaboSocket;
@@ -44,6 +48,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   onStart: () => void;
   onLeave: () => void;
   onRules: () => void;
+  chatProps: ChatProps;
 }) {
   const [pick, setPick] = useState<Pick>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -225,24 +230,27 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
   // (left side bottom→top, across the top, right side top→bottom). Phones keep everyone on top.
   const roomy = useMediaQuery('(min-width: 900px) and (min-height: 560px)');
 
-  // Bottom-bar cards (Posse, Log). On phones they don't fit side by side, so opening one closes the other.
+  // Bottom-bar cards (Posse, Log, Chat). On phones they don't fit side by side, so opening one closes the others.
   const phone = useMediaQuery('(max-width: 640px)');
   const [docks, setDocks] = useState(() => ({
     // Open from the start only where it can't cover the piles or my hand.
     posse: window.matchMedia?.('(min-width: 1600px)').matches ?? true,
     log: false,
-    last: 'posse' as 'posse' | 'log',
+    chat: false,
+    last: 'posse' as DockName,
   }));
-  const toggleDock = (which: 'posse' | 'log') =>
+  const toggleDock = (which: DockName) =>
     setDocks((d) => {
       const opening = !d[which];
-      const other = which === 'posse' ? 'log' : 'posse';
-      return { ...d, [which]: opening, ...(opening && phone ? { [other]: false } : {}), last: opening ? which : d.last };
+      const others = opening && phone ? Object.fromEntries(DOCKS.filter((k) => k !== which).map((k) => [k, false])) : {};
+      return { ...d, ...others, [which]: opening, last: opening ? which : d.last };
     });
-  // Becoming phone-sized (e.g. rotating a tablet) with both open: keep the one opened last.
+  // Becoming phone-sized (e.g. rotating a tablet) with several open: keep the one opened last.
+  const openDocks = DOCKS.filter((k) => docks[k]).length;
   useEffect(() => {
-    if (phone && docks.posse && docks.log) setDocks((d) => ({ ...d, [d.last === 'posse' ? 'log' : 'posse']: false }));
-  }, [phone, docks.posse, docks.log]);
+    if (phone && openDocks > 1) setDocks((d) => ({ ...d, ...Object.fromEntries(DOCKS.map((k) => [k, k === d.last])) }));
+  }, [phone, openDocks]);
+  const bubbles = chatBubbles(chatProps.chat, now);
   // Landscape layouts put the piles beside my hand instead of above it, so cards can be taller:
   // short screens (phones on their side) give my hand the full height on the left; wider ones
   // keep the opponents on top and sit the piles and my hand side by side below them.
@@ -293,6 +301,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
       orient={orient}
       state={slotState(p.id)}
       onCard={(slot) => onCard(p.id, slot)}
+      bubble={bubbles.get(p.id) ?? null}
     />
   );
   const myTurnNow = myTurn && view.phase !== 'ended' && view.phase !== 'peek';
@@ -406,6 +415,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
                 <span className="seat__name">{mePlayer.name} (you)</span>
                 {view.dealerId === me && <span className="chip-d" title="Dealer">D</span>}
                 {view.caboCalledBy === me && <span className="chip-cabo">CABO</span>}
+                {bubbles.has(me) && <span className="seat__bubble seat__bubble--me">{bubbles.get(me)}</span>}
               </div>
               <Hand
                 slots={mePlayer.slots}
@@ -449,7 +459,10 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules 
 
       <footer className="tfoot">
         <PlayersCard room={room} me={me} now={now} open={docks.posse} onToggle={() => toggleDock('posse')} />
-        <LogDock log={log} open={docks.log} onToggle={() => toggleDock('log')} />
+        <div className="tfoot__right">
+          <ChatDock {...chatProps} open={docks.chat} onToggle={() => toggleDock('chat')} />
+          <LogDock log={log} open={docks.log} onToggle={() => toggleDock('log')} />
+        </div>
       </footer>
 
       <ConfirmDialog

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import type { Ack, ClientToServer, GameEvent, PlayerView, RoomState, ServerToClient } from '@cabo/engine';
+import type { Ack, ChatMessage, ClientToServer, GameEvent, PlayerView, RoomState, ServerToClient } from '@cabo/engine';
+import type { ChatSend } from './components/ChatDock';
 import { DesertBackdrop } from './components/DesertBackdrop';
 import { RotateOverlay } from './components/RotateOverlay';
 import { RulesModal } from './components/RulesModal';
@@ -15,6 +16,9 @@ import { Rooms } from './screens/Rooms';
 export type CaboSocket = Socket<ServerToClient, ClientToServer>;
 /** `id` is a local sequence number; `rx` is when this client received it (for toasts). */
 export type LogLine = GameEvent & { at: number; id: number; rx: number };
+
+/** `rx` is when this client received it (for unread counts and speech bubbles). */
+export type ChatLine = ChatMessage & { rx: number };
 
 let logSeq = 0;
 
@@ -34,6 +38,25 @@ function readToken(): string | null {
     return localStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
+  }
+}
+
+// Muted chat senders, per room (sessionId → name). Only this browser knows.
+const muteKey = (code: string) => `cabo.muted.${PROFILE ? `${PROFILE}.` : ''}${code}`;
+function readMuted(code: string): Map<string, string> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(muteKey(code)) ?? '[]');
+    return new Map(Array.isArray(raw) ? raw.filter((e) => Array.isArray(e) && e.length === 2).map(([a, b]) => [String(a), String(b)]) : []);
+  } catch {
+    return new Map();
+  }
+}
+function writeMuted(code: string, muted: Map<string, string>) {
+  try {
+    if (muted.size) localStorage.setItem(muteKey(code), JSON.stringify([...muted]));
+    else localStorage.removeItem(muteKey(code));
+  } catch {
+    /* storage unavailable: mutes last for this tab only */
   }
 }
 
@@ -134,6 +157,8 @@ function Connected({ session, onSignOut, onRules, onBack }: {
   const [room, setRoom] = useState<RoomState | null>(null);
   const [view, setView] = useState<PlayerView | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
+  const [chat, setChat] = useState<ChatLine[]>([]);
+  const [muted, setMuted] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState('');
   const [replaced, setReplaced] = useState(false);
   const [synced, setSynced] = useState(false);
@@ -152,7 +177,10 @@ function Connected({ session, onSignOut, onRules, onBack }: {
     });
     s.on('room:state', (r) => {
       setRoom(r);
-      if (!r) setView(null);
+      if (!r) {
+        setView(null);
+        setChat([]);
+      }
       setSynced(true);
     });
     s.on('game:view', setView);
@@ -165,6 +193,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
       }
       setLog((l) => [...l.slice(-199), { ...line, id: ++logSeq, rx: Date.now() }]);
     });
+    s.on('chat:message', (m) => setChat((c) => [...c.slice(-99), { ...m, rx: Date.now() }]));
     s.on('session:replaced', () => {
       setReplaced(true);
       s.disconnect();
@@ -177,6 +206,9 @@ function Connected({ session, onSignOut, onRules, onBack }: {
 
   // Pre-fill / auto-join from ?room=CODE
   const urlCode = new URLSearchParams(location.search).get('room') ?? '';
+
+  const roomCode = room?.code ?? null;
+  useEffect(() => setMuted(roomCode ? readMuted(roomCode) : new Map()), [roomCode]);
 
   useEffect(() => {
     if (!error) return;
@@ -226,8 +258,19 @@ function Connected({ session, onSignOut, onRules, onBack }: {
         setRoom(null);
         setView(null);
         setLog([]);
+        setChat([]);
       }
     });
+  const sendChat: ChatSend = (req) => call((ack) => socket.emit('chat:send', req, ack)).then((r) => r.ok);
+  const mute = (id: string, name: string | null) => {
+    if (!roomCode) return;
+    const next = new Map(muted);
+    if (name === null) next.delete(id);
+    else next.set(id, name);
+    setMuted(next);
+    writeMuted(roomCode, next);
+  };
+  const chatProps = { chat: chat.filter((m) => !muted.has(m.fromId)), me: session.sessionId, onSend: sendChat, muted, onMute: mute };
 
   return (
     <>
@@ -252,6 +295,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           onRemoveBot={(id) => call((ack) => socket.emit('room:removeBot', { id }, ack))}
           onSettings={(s) => call((ack) => socket.emit('room:settings', s, ack))}
           watching={watching}
+          chatProps={chatProps}
         />
       ) : view ? (
         <Game
@@ -263,6 +307,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           onStart={() => call((ack) => socket.emit('room:start', ack)).then((r) => r.ok && track(room.status === 'lobby' ? 'game_started' : 'round_started', { players: room.players.length, bots: room.players.filter((p) => p.bot).length }))}
           onLeave={leave}
           onRules={onRules}
+          chatProps={chatProps}
         />
       ) : (
         <main className="screen">

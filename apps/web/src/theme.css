@@ -767,6 +767,45 @@ button.pcard:disabled { opacity: 1; }
 .log-list time { color: var(--leather); font-weight: 800; }
 .log-list__private { font-style: italic; }
 
+/* ---- chat ---- */
+.tfoot__right { display: flex; align-items: flex-end; gap: 8px; }
+.chip__badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--saddle); color: var(--cream); font-size: 11px; line-height: 1; vertical-align: 1px; }
+.chat-card { width: min(340px, 90vw); display: flex; flex-direction: column; gap: 6px; }
+.chat-muted { font-size: 12px; font-weight: 800; color: var(--leather); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.chat-muted__item { font: inherit; color: var(--saddle); background: var(--sand); border: 1px solid var(--saddle); border-radius: 999px; padding: 0 6px; cursor: pointer; }
+.chat-list { list-style: none; margin: 0; padding: 0; max-height: 32vh; min-height: 60px; overflow-y: auto; font-size: 13px; scrollbar-color: var(--leather) var(--cream); }
+.chat-list__empty { color: var(--leather); font-style: italic; padding: 6px 0; }
+.chat-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 3px 0; border-bottom: 1px dotted var(--leather); }
+.chat-line__name { font-weight: 800; color: var(--saddle); }
+.chat-line--me .chat-line__name { color: var(--leather); }
+.chat-line__tag { margin-left: 4px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--leather); }
+.chat-line__text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.chat-line__text--quick { font-weight: 800; }
+.chat-line__mute { margin-left: auto; padding: 0 2px; font-size: 11px; background: none; border: 0; cursor: pointer; opacity: 0.35; }
+.chat-line:hover .chat-line__mute, .chat-line__mute:focus-visible { opacity: 1; }
+.chat-quick { display: flex; flex-wrap: wrap; gap: 4px; }
+.chat-quick__btn { font-family: var(--font-body); font-weight: 800; font-size: 12px; color: var(--saddle); background: var(--sand); border: 2px solid var(--saddle); border-radius: 999px; padding: 2px 8px; cursor: pointer; }
+.chat-quick__btn:hover, .chat-quick__btn:focus-visible { background: var(--cream); outline: none; }
+.chat-form { display: flex; gap: 6px; align-items: stretch; }
+/* 16px keeps phones from zooming in on focus. */
+.chat-form .chat-form__input { font-size: 16px; padding: 6px 10px; border-width: 3px; border-radius: 10px; min-width: 0; }
+
+/* A chat line shown briefly on the sender's seat: over an opponent's hand, above my own plate. */
+.seat__plate { position: relative; }
+.seat__bubble {
+  position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 20;
+  width: max-content; max-width: 180px; padding: 4px 10px; border-radius: 12px;
+  background: var(--cream); color: var(--saddle); border: 2px solid var(--saddle); box-shadow: 0 3px 0 var(--saddle-deep);
+  font-size: 13px; font-weight: 800; white-space: normal; overflow-wrap: anywhere; text-align: center;
+  pointer-events: none; animation: bubble-in 160ms ease-out;
+}
+.seat__bubble--me { top: auto; bottom: calc(100% + 6px); }
+@keyframes bubble-in { from { opacity: 0; transform: translateX(-50%) scale(0.85); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .seat__bubble { animation: none; } }
+
+/* Lobby: the chat sits in the bottom-right corner of the screen. */
+.lobby__chat { position: fixed; right: 16px; bottom: 16px; z-index: 40; }
+
 @media (max-width: 640px) {
   .table-screen { --card-lg: clamp(46px, 15vw, 70px); --card-md: clamp(40px, 12vw, 60px); --card-sm: clamp(22px, 6.5vw, 32px); padding: 6px; gap: 6px; }
   .table { border-radius: 28px; border-width: 4px; padding: 10px 8px; }
@@ -1514,7 +1553,7 @@ button.pcard:disabled { opacity: 1; }
 /* Short and wide tables: the latest event shows on one line in the bottom bar, between the docks. */
 .table--short .toasts, .table--wide .toasts {
   position: fixed; top: auto; right: auto; bottom: 6px; left: 50%; transform: translateX(-50%);
-  width: min(420px, calc(100vw - 300px)); min-height: 0; display: flex; justify-content: center; z-index: 36;
+  width: min(420px, calc(100vw - 380px)); min-height: 0; display: flex; justify-content: center; z-index: 36;
 }
 .table--short .toast, .table--wide .toast { box-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: 12px; padding: 3px 10px; }
 .table--short .toast:not(:last-child), .table--wide .toast:not(:last-child) { display: none; }

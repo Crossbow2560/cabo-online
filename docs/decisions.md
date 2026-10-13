@@ -115,3 +115,11 @@ The client can't infer "which card moved where" from two views, because hidden c
 - The client records card positions and looks when the event arrives (before re-render).
 - After render, it flies two-sided clones between them.
 - Layout is kept stable on purpose: fixed-size prompt and action areas, and a reserved drawn-card spot. Messages never move cards, and the "settle" glide only has to handle real layout changes.
+
+## Chat is relayed, not stored
+Room chat (`chat:send` → `chat:message`) goes straight from the sender to everyone in the room's socket.io room. The server keeps no history, so you only see messages that arrived while you were connected, and a reload starts empty.
+- No migration, no per-room buffer to bound or clean up, and nothing to moderate after the fact.
+- Quick chats are sent by id from the fixed `QUICK_CHATS` list, so their text can't be spoofed.
+- Muting is per browser (`localStorage`, per room code): the server still relays everything.
+
+**Considered:** an in-memory buffer of recent messages for people who join late or reconnect, and a Postgres table. Both were left out for now; either can be added later behind the same events.
