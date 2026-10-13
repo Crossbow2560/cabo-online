@@ -4,7 +4,7 @@ import { createServer as createHttpServer } from 'node:http';
 import path from 'node:path';
 import express from 'express';
 import { Server } from 'socket.io';
-import type { Action, BotLevel, ClientAction, ClientToServer, ServerToClient, Timings } from '@cabo/engine';
+import { CHAT_MAX_LEN, QUICK_CHATS, type Action, type BotLevel, type ClientAction, type ClientToServer, type ServerToClient, type Timings } from '@cabo/engine';
 import { clientIp, createLimiter, noLimit, type Limit, type Limiter } from './rateLimit';
 import { GameError, RoomManager } from './rooms';
 import { NICKNAME_MAX, type SessionRecord, type Store } from './store';
@@ -35,6 +35,16 @@ function parseAction(raw: unknown, playerId: string): Action {
   return out as unknown as Action;
 }
 
+/** Chat text as shown: no control characters, whitespace runs collapsed, trimmed. */
+function cleanChat(raw: unknown): string {
+  if (typeof raw !== 'string') throw new GameError('Bad message');
+  // eslint-disable-next-line no-control-regex
+  const text = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!text) throw new GameError('Say something first');
+  if (text.length > CHAT_MAX_LEN) throw new GameError(`Keep it under ${CHAT_MAX_LEN} characters`);
+  return text;
+}
+
 /** Default limits; see docs/api.md. */
 export const RATE_LIMITS = {
   /** POST /api/session, per IP. */
@@ -47,6 +57,8 @@ export const RATE_LIMITS = {
   events: { limit: 20, windowMs: 1_000 },
   /** room:create / room:join / room:spectate, per session. */
   roomOps: { limit: 10, windowMs: 60_000 },
+  /** chat:send, per session. */
+  chat: { limit: 5, windowMs: 10_000 },
 } satisfies Record<string, Limit>;
 type RateLimits = { [K in keyof typeof RATE_LIMITS]: Limit };
 
@@ -93,6 +105,7 @@ export async function createCaboServer(opts: ServerOptions) {
   const handshakeLimiter = limiter('handshake');
   const eventLimiter = limiter('events');
   const roomOpLimiter = limiter('roomOps');
+  const chatLimiter = limiter('chat');
 
   // Express middleware: 429 + Retry-After once an IP is over `l`.
   const limitByIp = (l: Limiter): express.RequestHandler => (req, res, next) => {
@@ -302,6 +315,29 @@ export async function createCaboServer(opts: ServerOptions) {
     socket.on('game:snapPass', handle((req: { windowId: number }) => {
       if (!req || !Number.isInteger(req.windowId)) throw new GameError('Bad pass');
       rooms.passSnap(sid, req.windowId);
+    }) as never);
+
+    // Chat is relayed, never stored: you see what arrives while you're connected.
+    socket.on('chat:send', handle((req: { text?: unknown; quick?: unknown }) => {
+      if (!req || typeof req !== 'object') throw new GameError('Bad message');
+      const seated = rooms.roomOf(sid);
+      const room = seated ?? rooms.spectatingOf(sid);
+      if (!room) throw new GameError('Not in a room');
+      let text: string;
+      let quick: (typeof QUICK_CHATS)[number]['id'] | null = null;
+      if (req.quick !== undefined) {
+        const q = QUICK_CHATS.find((c) => c.id === req.quick);
+        if (!q) throw new GameError('Unknown quick chat');
+        text = q.text;
+        quick = q.id;
+      } else text = cleanChat(req.text);
+      if (!chatLimiter.hit(sid).ok) throw new GameError('Slow down');
+      const fromName = seated
+        ? seated.rec.players.find((p) => p.sessionId === sid)?.name ?? session.nickname
+        : room.spectators.get(sid) ?? session.nickname;
+      io.to(`r:${room.rec.code}`).emit('chat:message', {
+        id: randomUUID(), fromId: sid, fromName, spectator: !seated, text, quick, at: Date.now(),
+      });
     }) as never);
 
     socket.on('disconnect', async () => {

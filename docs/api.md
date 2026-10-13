@@ -43,6 +43,7 @@ All limits are in memory, per server process, over a sliding window. The default
 | Any socket event | session | 20 / second | ack `{ ok: false, error: 'Slow down' }` |
 | `room:create` / `room:join` / `room:spectate` | session | 10 / minute | ack `Slow down` |
 | `game:snap` (R28) | socket | 5 / second | ack `Slow down` |
+| `chat:send` | session | 5 / 10 seconds | ack `Slow down` |
 
 Any other path serves `apps/web/dist/index.html` (SPA fallback) when the build exists.
 
@@ -77,6 +78,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `game:action` | `ClientAction` | `{ ok }` | See the actions table below. Include `expectedVersion` (from the last `game:view`) to reject stale clicks. |
 | `game:snap` | `{ windowId, ownerId, slot, reactionMs }` | `{ ok }` | Queues your snap for this window (one per player). `reactionMs` = time from this client seeing the window to the tap; clamped server-side to ≥120ms and ≤ the time elapsed on arrival. The outcome arrives as `game:log` events when the window resolves; a lost race gets a private "Too slow — someone snapped first". Errors: `You already snapped this time`, `Too slow — the snap window is closed`. Rate-limited to 5 per second per socket. |
 | `game:snapPass` | `{ windowId }` | `{ ok }` | "My window ended and I didn't snap": lets the server resolve the window without waiting out the 1.5s grace. |
+| `chat:send` | `{ text }` or `{ quick }` | `{ ok }` | Anyone seated or watching, at any stage (also while paused). `text` has control characters removed and whitespace collapsed, and must then be 1–`CHAT_MAX_LEN` (200) characters. `quick` is an id from `QUICK_CHATS`. Relayed to the room as `chat:message`; nothing is stored. Errors: `Not in a room`, `Say something first`, `Keep it under 200 characters`, `Unknown quick chat`. |
 
 **`ClientAction` types** (`playerId` is filled in by the server):
 
@@ -110,6 +112,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `game:view` | `PlayerView \| null` | After every accepted action, for each player, redacted for them. |
 | `game:log` | `GameEvent & { at }` | Each engine event. Public ones go to the room; private ones (`to` set) only to that player. |
 | `session:replaced` | none | This socket was replaced by a newer one for the same session. |
+| `chat:message` | `ChatMessage` | Someone in the room sent `chat:send`. Goes to every player and spectator in the room, the sender included. |
 
 **`RoomState`:**
 - `code`, `hostId`
@@ -121,6 +124,8 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 - `limitHit`: between rounds, the players whose total has reached `maxPoints` (non-empty = game over; `room:start` is refused)
 - `paused`: `{ byId, byName } | null`
 - `final`: `{ standings: { id, name, total }[], winners, rounds, losers, reason: 'limit' | 'host' } | null`, the last game's final totals (lowest first), until the next deal
+
+**`ChatMessage`:** `{ id, fromId, fromName, spectator, text, quick, at }`. `spectator` is true when the sender was watching without a seat; `quick` is the quick-chat id, or `null` for typed text. Clients render `text` as plain text.
 
 **`PlayerView`** (key fields):
 - `you`, `version`, `phase`, `currentPlayerId`, `dealerId`

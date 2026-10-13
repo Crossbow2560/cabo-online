@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { io as connect, type Socket } from 'socket.io-client';
-import { cardValue, type PlayerView } from '@cabo/engine';
+import { CHAT_MAX_LEN, cardValue, type ChatMessage, type PlayerView } from '@cabo/engine';
 import { createCaboServer } from '../src/server';
 import { MemoryStore, PgStore, type Store } from '../src/store';
 
@@ -19,7 +19,7 @@ afterEach(async () => {
 async function start(
   store: Store = new MemoryStore(),
   kickAfterMs?: number,
-  extra: { timings?: object; peekHoldMs?: number; botPace?: number; snapGraceMs?: number; defaultMaxPoints?: number | null } = {},
+  extra: { timings?: object; peekHoldMs?: number; botPace?: number; snapGraceMs?: number; defaultMaxPoints?: number | null; rateLimits?: { chat: { limit: number; windowMs: number } } } = {},
 ) {
   const server = await createCaboServer({
     store,
@@ -32,7 +32,7 @@ async function start(
     // Multi-round tests shouldn't trip the points limit; the settings tests set one explicitly.
     defaultMaxPoints: extra.defaultMaxPoints === undefined ? null : extra.defaultMaxPoints,
     // Test clients fire sessions and events far faster than people; the rate-limit test turns them on.
-    rateLimits: false,
+    rateLimits: extra.rateLimits ?? false,
   });
   const port = await server.listen(0);
   servers.push(server);
@@ -45,6 +45,7 @@ interface Bot {
   socket: Socket;
   view: PlayerView | null;
   logs: string[];
+  chat: ChatMessage[];
   emit<T = { ok: boolean; error?: string; code?: string }>(ev: string, payload?: unknown): Promise<T>;
   until(pred: (v: PlayerView) => boolean, ms?: number): Promise<PlayerView>;
 }
@@ -64,6 +65,7 @@ async function bot(url: string, name: string, existingToken?: { id: string; toke
     socket,
     view: null,
     logs: [],
+    chat: [],
     emit: (ev, payload) =>
       new Promise((res) => (payload === undefined ? socket.emit(ev, res) : socket.emit(ev, payload, res))),
     until: (pred, ms = 3000) =>
@@ -82,6 +84,7 @@ async function bot(url: string, name: string, existingToken?: { id: string; toke
   };
   socket.on('game:view', (v) => (b.view = v));
   socket.on('game:log', (e) => b.logs.push(e.text));
+  socket.on('chat:message', (m: ChatMessage) => b.chat.push(m));
   await new Promise<void>((res, rej) => {
     socket.on('connect', () => res());
     socket.on('connect_error', rej);
@@ -878,4 +881,49 @@ describe('game settings', () => {
     expect((await host.emit('room:end')).ok).toBe(true);
     expect((await final).final).toMatchObject({ reason: 'limit', losers: [guest.id], winners: [host.id] });
   }, 30_000);
+});
+
+describe('chat', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 100));
+
+  it('reaches everyone in the room, players and spectators, and nobody else', async () => {
+    const { url } = await start();
+    const { bots: [ana, bob], code } = await lobby(url, 2);
+    const fan = await bot(url, 'Fan');
+    await fan.emit('room:spectate', { code });
+    const { bots: [other] } = await lobby(url, 1);
+
+    expect(await ana.emit('chat:send', { text: '  howdy\n\tpardner \u0007 ' })).toEqual({ ok: true });
+    expect(await fan.emit('chat:send', { quick: 'cowboy' })).toEqual({ ok: true });
+    await settle();
+    for (const b of [ana, bob, fan]) {
+      expect(b.chat.map((m) => [m.fromName, m.text, m.spectator, m.quick])).toEqual([
+        ['Ana', 'howdy pardner', false, null],
+        ['Fan', '🤠', true, 'cowboy'],
+      ]);
+    }
+    expect(ana.chat[0]).toMatchObject({ fromId: ana.id, id: expect.any(String), at: expect.any(Number) });
+    expect(other.chat).toEqual([]);
+  });
+
+  it('refuses bad input, and people outside a room', async () => {
+    const { url } = await start();
+    const { bots: [ana] } = await lobby(url, 1);
+    for (const req of [{ text: '' }, { text: ' \n ' }, { text: 'x'.repeat(CHAT_MAX_LEN + 1) }, { text: 5 }, { quick: 'nope' }, null]) {
+      expect(await ana.emit('chat:send', req)).toMatchObject({ ok: false });
+    }
+    expect(await ana.emit('chat:send', { text: 'x'.repeat(CHAT_MAX_LEN) })).toEqual({ ok: true });
+    const loner = await bot(url, 'Loner');
+    expect(await loner.emit('chat:send', { text: 'hi' })).toEqual({ ok: false, error: 'Not in a room' });
+    await settle();
+    expect(ana.chat).toHaveLength(1);
+  });
+
+  it('is rate limited per session', async () => {
+    const { url } = await start(undefined, undefined, { rateLimits: { chat: { limit: 2, windowMs: 60_000 } } });
+    const { bots: [ana] } = await lobby(url, 1);
+    expect((await ana.emit('chat:send', { text: 'a' })).ok).toBe(true);
+    expect((await ana.emit('chat:send', { quick: 'gg' })).ok).toBe(true);
+    expect(await ana.emit('chat:send', { text: 'c' })).toEqual({ ok: false, error: 'Slow down' });
+  });
 });

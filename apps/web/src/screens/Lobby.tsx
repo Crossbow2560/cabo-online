@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type GameSettings, type RoomState } from '@cabo/engine';
+import { ChatDock, type ChatProps } from '../components/ChatDock';
 import { CopyField } from '../components/CopyField';
 import { FinalResults } from '../components/FinalResults';
 import { SoundControl } from '../components/SoundControl';
@@ -19,7 +20,7 @@ const LEVEL_INFO: Record<BotLevel, { label: string; hint: string }> = {
   expert: { label: 'Expert', hint: "Quick · You ain't leavin' the table"},
 };
 
-export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSettings, watching = false }: {
+export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSettings, watching = false, chatProps }: {
   room: RoomState;
   me: string;
   onStart: () => void;
@@ -30,7 +31,10 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
   onSettings: (s: GameSettings) => void;
   /** Watching without a seat. */
   watching?: boolean;
+  chatProps: ChatProps;
 }) {
+  // Open from the start where it has room beside the lobby panels; phones keep it tucked away.
+  const [chatOpen, setChatOpen] = useState(() => window.matchMedia?.('(min-width: 1100px)').matches ?? false);
   const now = useNow(1000);
   const isHost = room.hostId === me;
   const link = `${usePublicUrl()}/?room=${room.code}`;
@@ -221,6 +225,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
           </button>
         )}
       </div>
+      <ChatDock {...chatProps} open={chatOpen} onToggle={() => setChatOpen((o) => !o)} className="lobby__chat" />
     </main>
   );
 }
