@@ -33,8 +33,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
   watching?: boolean;
   chatProps: ChatProps;
 }) {
-  // Open from the start where it has room beside the lobby panels; phones keep it tucked away.
-  const [chatOpen, setChatOpen] = useState(() => window.matchMedia?.('(min-width: 1100px)').matches ?? false);
+  const [chatOpen, setChatOpen] = useState(false);
   const now = useNow(1000);
   const isHost = room.hostId === me;
   const link = `${usePublicUrl()}/?room=${room.code}`;

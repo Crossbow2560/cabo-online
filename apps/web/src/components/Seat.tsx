@@ -6,7 +6,7 @@ import type { Orient } from './PlayingCard';
 type SeatPlayer = PlayerView['players'][number];
 
 /** An opponent around the table: name plate + mini hand. */
-export function Seat({ player, view, room, now, arc, state, onCard, orient = 'top', bubble = null }: {
+export function Seat({ player, view, room, now, arc, state, onCard, orient = 'top' }: {
   player: SeatPlayer;
   view: PlayerView;
   room: RoomState;
@@ -17,8 +17,6 @@ export function Seat({ player, view, room, now, arc, state, onCard, orient = 'to
   onCard: (slot: number) => void;
   /** Where this seat is relative to the viewer (its hand is turned to face them). */
   orient?: Orient;
-  /** Their latest chat message, shown briefly over the name plate. */
-  bubble?: string | null;
 }) {
   const info = room.players.find((p) => p.id === player.id);
   const turn = view.currentPlayerId === player.id && view.phase !== 'ended' && view.phase !== 'peek';
@@ -29,7 +27,6 @@ export function Seat({ player, view, room, now, arc, state, onCard, orient = 'to
         <span className="seat__name">{player.name}</span>
         {view.dealerId === player.id && <span className="chip-d" title="Dealer">D</span>}
         {view.caboCalledBy === player.id && <span className="chip-cabo">CABO</span>}
-        {bubble && <span className="seat__bubble">{bubble}</span>}
       </div>
       <div className="seat__sub">
         {view.phase === 'peek' ? (player.ready ? 'ready ✓' : 'memorising…') : turn ? 'their turn' : ' '}

@@ -771,37 +771,60 @@ button.pcard:disabled { opacity: 1; }
 .tfoot__right { display: flex; align-items: flex-end; gap: 8px; }
 .chip__badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: var(--saddle); color: var(--cream); font-size: 11px; line-height: 1; vertical-align: 1px; }
 .chat-card { width: min(340px, 90vw); display: flex; flex-direction: column; gap: 6px; }
+.chat-card > :not(.chat-list) { flex-shrink: 0; }
 .chat-muted { font-size: 12px; font-weight: 800; color: var(--leather); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .chat-muted__item { font: inherit; color: var(--saddle); background: var(--sand); border: 1px solid var(--saddle); border-radius: 999px; padding: 0 6px; cursor: pointer; }
 .chat-list { list-style: none; margin: 0; padding: 0; max-height: 32vh; min-height: 60px; overflow-y: auto; font-size: 13px; scrollbar-color: var(--leather) var(--cream); }
 .chat-list__empty { color: var(--leather); font-style: italic; padding: 6px 0; }
-.chat-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; padding: 3px 0; border-bottom: 1px dotted var(--leather); }
+.chat-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px; padding: 3px 0; border-bottom: 1px dotted var(--leather); }
+.chat-line__msg { min-width: 0; overflow-wrap: anywhere; }
 .chat-line__name { font-weight: 800; color: var(--saddle); }
 .chat-line--me .chat-line__name { color: var(--leather); }
 .chat-line__tag { margin-left: 4px; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--leather); }
-.chat-line__text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .chat-line__text--quick { font-weight: 800; }
-.chat-line__mute { margin-left: auto; padding: 0 2px; font-size: 11px; background: none; border: 0; cursor: pointer; opacity: 0.35; }
+.chat-line__mute { padding: 0 2px; font-size: 11px; background: none; border: 0; cursor: pointer; opacity: 0.35; }
 .chat-line:hover .chat-line__mute, .chat-line__mute:focus-visible { opacity: 1; }
 .chat-quick { display: flex; flex-wrap: wrap; gap: 4px; }
 .chat-quick__btn { font-family: var(--font-body); font-weight: 800; font-size: 12px; color: var(--saddle); background: var(--sand); border: 2px solid var(--saddle); border-radius: 999px; padding: 2px 8px; cursor: pointer; }
 .chat-quick__btn:hover, .chat-quick__btn:focus-visible { background: var(--cream); outline: none; }
 .chat-form { display: flex; gap: 6px; align-items: stretch; }
+/* The quick-chat toggle is for phones only (see "chat on small screens"). */
+.chat-form__quick { display: none; }
 /* 16px keeps phones from zooming in on focus. */
 .chat-form .chat-form__input { font-size: 16px; padding: 6px 10px; border-width: 3px; border-radius: 10px; min-width: 0; }
 
-/* A chat line shown briefly on the sender's seat: over an opponent's hand, above my own plate. */
-.seat__plate { position: relative; }
-.seat__bubble {
-  position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 20;
-  width: max-content; max-width: 180px; padding: 4px 10px; border-radius: 12px;
-  background: var(--cream); color: var(--saddle); border: 2px solid var(--saddle); box-shadow: 0 3px 0 var(--saddle-deep);
-  font-size: 13px; font-weight: 800; white-space: normal; overflow-wrap: anywhere; text-align: center;
-  pointer-events: none; animation: bubble-in 160ms ease-out;
+/* Chat pops: a sender's latest line, hinged on the side of their name plate. They live in a fixed
+   layer over the page (ChatBubbles), so they cover the table rather than taking room on it.
+   Above the table and pause blur (30), below the bottom docks (35) and card flights (50). */
+.chat-pops { position: fixed; inset: 0; z-index: 34; pointer-events: none; }
+.chat-pop { --dir: 1; position: absolute; transform: translateY(-50%); }
+.chat-pop--flip { --dir: -1; transform: translate(-100%, -50%); }
+.chat-pop__body {
+  position: relative; width: max-content; max-width: 210px; padding: 5px 11px;
+  font-size: 13px; font-weight: 800; line-height: 1.25; color: var(--saddle); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  background: var(--cream); border: 2px solid var(--saddle); border-radius: 4px 14px 14px 14px;
+  box-shadow: 0 4px 0 var(--saddle-deep), 0 10px 22px rgb(0 0 0 / 0.28);
+  transform-origin: left center;
+  animation: chat-pop-in 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-.seat__bubble--me { top: auto; bottom: calc(100% + 6px); }
-@keyframes bubble-in { from { opacity: 0; transform: translateX(-50%) scale(0.85); } to { opacity: 1; transform: translateX(-50%) scale(1); } }
-@media (prefers-reduced-motion: reduce) { .seat__bubble { animation: none; } }
+.chat-pop--flip .chat-pop__body { transform-origin: right center; border-radius: 14px 4px 14px 14px; }
+.chat-pop__body--quick { font-size: 15px; }
+.chat-pop--out .chat-pop__body { animation: chat-pop-out 280ms ease-in both; }
+@keyframes chat-pop-in {
+  0% { opacity: 0; transform: rotate(calc(-45deg * var(--dir))) scale(0.35); }
+  55% { opacity: 1; transform: rotate(calc(8deg * var(--dir))) scale(1.08); }
+  78% { transform: rotate(calc(-3deg * var(--dir))) scale(0.98); }
+  100% { opacity: 1; transform: rotate(0) scale(1); }
+}
+@keyframes chat-pop-out {
+  from { opacity: 1; transform: rotate(0) scale(1); }
+  to { opacity: 0; transform: rotate(calc(-45deg * var(--dir))) scale(0.5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-pop__body { animation: none; }
+  .chat-pop--out .chat-pop__body { animation: none; opacity: 0; transition: opacity 200ms; }
+}
 
 /* Lobby: the chat sits in the bottom-right corner of the screen. */
 .lobby__chat { position: fixed; right: 16px; bottom: 16px; z-index: 40; }
@@ -1688,4 +1711,47 @@ button.pcard:disabled { opacity: 1; }
   .bot-menu__item { padding: 4px 8px; gap: 0; border-radius: 8px; }
   .bot-menu__label { font-size: 13px; line-height: 1.2; }
   .bot-menu__hint { font-size: 10px; line-height: 1.2; }
+}
+
+/* ======== chat on small screens ======== */
+/* Phones (either way up) and short windows: a compact sheet in the bottom-right corner, sized to
+   leave most of the table in view. No header (the Chat chip names it); a few lines of messages,
+   quick chats on one swipeable row, then the text box. */
+@media (max-width: 640px), (max-height: 520px) {
+  .chat-card {
+    position: fixed; left: auto; right: 8px; bottom: 40px;
+    width: min(320px, calc(100vw - 16px)); max-height: min(176px, calc(100dvh - 56px));
+    overflow: hidden; padding: 6px 8px; gap: 4px; font-size: 12px;
+  }
+  .lobby__chat { right: 10px; bottom: 10px; }
+  .lobby__chat .chat-card { bottom: 46px; }
+  .chat-card .mini-card__head { display: none; }
+  .chat-muted { font-size: 11px; }
+  .chat-list { flex: 1 1 auto; max-height: none; min-height: 32px; font-size: 12px; }
+  .chat-list__empty { padding: 2px 0; }
+  .chat-line { padding: 1px 0; gap: 4px; }
+  .chat-line__tag { font-size: 9px; }
+  /* Quick chats live behind the 🤠 button: picking swaps them in where the messages were. */
+  .chat-quick { display: none; }
+  .chat-card--picking .chat-list, .chat-card--picking .chat-muted { display: none; }
+  .chat-card--picking .chat-quick {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px;
+    flex: 1 1 auto; align-content: center;
+  }
+  .chat-quick__btn { font-size: 12px; padding: 5px 4px; border-width: 1.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-form__quick {
+    display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; padding: 0;
+    font-size: 15px; color: var(--saddle); background: var(--sand); border: 2px solid var(--saddle); border-radius: 8px; cursor: pointer;
+  }
+  .chat-form__quick[aria-pressed='true'] { background: var(--saddle); color: var(--cream); font-size: 13px; font-weight: 800; }
+  .chat-form { gap: 4px; }
+  .chat-form .btn { font-size: 11px; padding: 2px 10px; box-shadow: 0 2px 0 var(--saddle-deep); }
+  /* 16px stops iOS zooming in on focus; the box itself stays short. */
+  .chat-form .chat-form__input { font-size: 16px; padding: 2px 8px; border-width: 2px; border-radius: 8px; height: 30px; }
+  .chat-pop__body { max-width: 150px; font-size: 11px; padding: 3px 8px; -webkit-line-clamp: 2; }
+  .chat-pop__body--quick { font-size: 13px; }
+}
+/* No hover on touch screens: keep the mute buttons visible. */
+@media (pointer: coarse) {
+  .chat-line__mute { opacity: 0.7; font-size: 13px; padding: 0 4px; }
 }

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CHAT_MAX_LEN, QUICK_CHATS, type QuickChatId } from '@cabo/engine';
 import type { ChatLine } from '../App';
 
@@ -27,8 +28,32 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
   className?: string;
 }) {
   const [draft, setDraft] = useState('');
+  // Phones: quick chats take the message list's place while picking (the toggle is hidden elsewhere).
+  const [picking, setPicking] = useState(false);
+  useEffect(() => {
+    if (!open) setPicking(false);
+  }, [open]);
   const listRef = useRef<HTMLOListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef(onToggle);
+  toggleRef.current = onToggle;
+
+  // Open: a press anywhere outside the chat (or Escape) closes it. The Chat chip is inside, so it
+  // still toggles on its own; a press on another chip closes this and opens that one.
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) toggleRef.current();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && toggleRef.current();
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
 
   // Unread: messages from others received since the panel was last open.
   const [seenRx, setSeenRx] = useState(() => Date.now());
@@ -49,9 +74,9 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
   };
 
   return (
-    <div className={`dock dock--right ${className}`}>
+    <div className={`dock dock--right ${className}`} ref={rootRef}>
       {open && (
-        <div className="panel mini-card chat-card" id="chat-card">
+        <div className={`panel mini-card chat-card ${picking ? 'chat-card--picking' : ''}`} id="chat-card">
           <div className="mini-card__head">
             <span>Chat</span>
             <span className="mini-card__sub">This room</span>
@@ -70,12 +95,14 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
             {chat.length === 0 && <li className="chat-list__empty">No messages yet. Say howdy!</li>}
             {chat.map((m) => (
               <li key={m.id} className={`chat-line ${m.fromId === me ? 'chat-line--me' : ''}`}>
-                <span className="chat-line__name">
-                  {m.fromName}
-                  {m.fromId === me && <span className="chat-line__tag">(you)</span>}
-                  {m.spectator && <span className="chat-line__tag">watching</span>}
+                <span className="chat-line__msg">
+                  <span className="chat-line__name">
+                    {m.fromName}
+                    {m.fromId === me && <span className="chat-line__tag">(you)</span>}
+                    {m.spectator && <span className="chat-line__tag">watching</span>}
+                  </span>{' '}
+                  <span className={m.quick ? 'chat-line__text--quick' : ''}>{m.text}</span>
                 </span>
-                <span className={`chat-line__text ${m.quick ? 'chat-line__text--quick' : ''}`}>{m.text}</span>
                 {m.fromId !== me && (
                   <button className="chat-line__mute" onClick={() => onMute(m.fromId, m.fromName)} aria-label={`Mute ${m.fromName}`} title={`Mute ${m.fromName}`}>
                     🔇
@@ -86,7 +113,14 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
           </ol>
           <div className="chat-quick" role="group" aria-label="Quick chat">
             {QUICK_CHATS.map((q) => (
-              <button key={q.id} className="chat-quick__btn" onClick={() => onSend({ quick: q.id })}>
+              <button
+                key={q.id}
+                className="chat-quick__btn"
+                onClick={() => {
+                  setPicking(false);
+                  onSend({ quick: q.id });
+                }}
+              >
                 {q.text}
               </button>
             ))}
@@ -98,6 +132,16 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
               send();
             }}
           >
+            <button
+              type="button"
+              className="chat-form__quick"
+              onClick={() => setPicking((p) => !p)}
+              aria-pressed={picking}
+              aria-label={picking ? 'Back to messages' : 'Quick chats'}
+              title={picking ? 'Back to messages' : 'Quick chats'}
+            >
+              {picking ? '✕' : '🤠'}
+            </button>
             <input
               ref={inputRef}
               className="input chat-form__input"
@@ -105,7 +149,7 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 e.stopPropagation(); // typing must never reach table or menu key handlers
-                if (e.key === 'Escape') inputRef.current?.blur();
+                if (e.key === 'Escape') onToggle();
               }}
               maxLength={CHAT_MAX_LEN}
               placeholder="Say something…"
@@ -132,9 +176,57 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
   );
 }
 
-/** Recent chat per sender, for speech bubbles on the table: sessionId → text. */
-export function chatBubbles(chat: ChatLine[], now: number, ms = 3500): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const m of chat) if (now - m.rx < ms) out.set(m.fromId, m.text.length > 40 ? `${m.text.slice(0, 39)}…` : m.text);
-  return out;
+const BUBBLE_MS = 3500;
+const BUBBLE_OUT_MS = 300;
+/** Room a bubble needs to the right of a name plate before it flips to the left. */
+const BUBBLE_ROOM = 230;
+
+type BubblePos = { x: number; y: number; flip: boolean };
+
+/**
+ * Each sender's latest message, popped out beside their name plate for a few seconds. Drawn in a
+ * fixed layer over the page (not inside the seats), so it never moves or resizes anything on the table.
+ * Spectators have no plate, so their messages only show in the chat.
+ */
+export function ChatBubbles({ chat, now }: { chat: ChatLine[]; now: number }) {
+  const latest = new Map<string, ChatLine>();
+  for (const m of chat) if (now - m.rx < BUBBLE_MS) latest.set(m.fromId, m);
+  const live = [...latest.values()];
+
+  // Plates move with the layout (resizes, seats joining): measure them after every render
+  // (Game re-renders a few times a second) and only re-render here when something moved.
+  const [pos, setPos] = useState<Record<string, BubblePos>>({});
+  const key = live.map((m) => m.id).join(',');
+  useLayoutEffect(() => {
+    const next: Record<string, BubblePos> = {};
+    for (const m of live) {
+      const plate = document.querySelector<HTMLElement>(`[data-seat="${CSS.escape(m.fromId)}"] .seat__plate`);
+      if (!plate) continue;
+      const r = plate.getBoundingClientRect();
+      const flip = r.right + BUBBLE_ROOM > window.innerWidth;
+      next[m.fromId] = { x: Math.round(flip ? r.left - 4 : r.right + 4), y: Math.round(r.top + r.height / 2), flip };
+    }
+    if (JSON.stringify(next) !== JSON.stringify(pos)) setPos(next);
+  });
+
+  if (!key) return null;
+  return createPortal(
+    <div className="chat-pops" aria-hidden>
+      {live.map((m) => {
+        const p = pos[m.fromId];
+        if (!p) return null;
+        const leaving = now - m.rx > BUBBLE_MS - BUBBLE_OUT_MS;
+        return (
+          <div
+            key={m.id}
+            className={`chat-pop ${p.flip ? 'chat-pop--flip' : ''} ${leaving ? 'chat-pop--out' : ''}`}
+            style={{ left: p.x, top: p.y }}
+          >
+            <div className={`chat-pop__body ${m.quick ? 'chat-pop__body--quick' : ''}`}>{m.text}</div>
+          </div>
+        );
+      })}
+    </div>,
+    document.body,
+  );
 }

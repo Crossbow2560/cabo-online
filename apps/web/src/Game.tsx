@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cardLabel, type Ack, type Card, type ClientAction, type PlayerView, type RoomState } from '@cabo/engine';
 import type { CaboSocket, LogLine } from './App';
-import { ChatDock, chatBubbles, type ChatProps } from './components/ChatDock';
+import { ChatBubbles, ChatDock, type ChatProps } from './components/ChatDock';
 import { ActionBar, blindPick, kingChoice, kingDeciding, type Pick } from './components/ActionBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { LogDock, Toasts } from './components/EventFeed';
@@ -250,7 +250,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules,
   useEffect(() => {
     if (phone && openDocks > 1) setDocks((d) => ({ ...d, ...Object.fromEntries(DOCKS.map((k) => [k, k === d.last])) }));
   }, [phone, openDocks]);
-  const bubbles = chatBubbles(chatProps.chat, now);
   // Landscape layouts put the piles beside my hand instead of above it, so cards can be taller:
   // short screens (phones on their side) give my hand the full height on the left; wider ones
   // keep the opponents on top and sit the piles and my hand side by side below them.
@@ -301,7 +300,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules,
       orient={orient}
       state={slotState(p.id)}
       onCard={(slot) => onCard(p.id, slot)}
-      bubble={bubbles.get(p.id) ?? null}
     />
   );
   const myTurnNow = myTurn && view.phase !== 'ended' && view.phase !== 'peek';
@@ -415,7 +413,6 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules,
                 <span className="seat__name">{mePlayer.name} (you)</span>
                 {view.dealerId === me && <span className="chip-d" title="Dealer">D</span>}
                 {view.caboCalledBy === me && <span className="chip-cabo">CABO</span>}
-                {bubbles.has(me) && <span className="seat__bubble seat__bubble--me">{bubbles.get(me)}</span>}
               </div>
               <Hand
                 slots={mePlayer.slots}
@@ -457,6 +454,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules,
         )}
       </section>
 
+      <ChatBubbles chat={chatProps.chat} now={now} />
       <footer className="tfoot">
         <PlayersCard room={room} me={me} now={now} open={docks.posse} onToggle={() => toggleDock('posse')} />
         <div className="tfoot__right">
