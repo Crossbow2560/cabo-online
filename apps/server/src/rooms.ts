@@ -33,6 +33,8 @@ export interface Outbox {
   log(target: string, event: GameEvent): void;
   /** A player left or was kicked: unsubscribe their sockets from the room and tell them. */
   detach(sessionId: string, code: string): void;
+  /** The host removed this session from the room (sent before `detach`). */
+  kicked(sessionId: string, code: string): void;
 }
 
 export class GameError extends Error {}
@@ -80,6 +82,8 @@ export class Room {
   }
   /** Watching without a seat: sessionId → nickname. In memory only. */
   spectators = new Map<string, string>();
+  /** Sessions the host removed: they can't join or watch again. In memory only (a restart forgets). */
+  banned = new Set<string>();
   /** Mid-round pause (not persisted: a restart resumes play). */
   paused: { byId: string; byName: string; at: number } | null = null;
   /** Final standings of the last game ended by the host, until the next deal. */
@@ -225,6 +229,7 @@ export class RoomManager {
     const code = String(rawCode ?? '').trim().toUpperCase();
     const room = this.rooms.get(code);
     if (!room || room.rec.status === 'closed') throw new GameError('Room not found');
+    if (room.banned.has(session.id)) throw new GameError('The host removed you from this room');
     if (this.roomOf(session.id)) throw new GameError('Leave your current room first');
     if (!room.spectators.has(session.id) && room.spectators.size >= MAX_SPECTATORS) throw new GameError('Too many spectators');
     const current = this.spectatingOf(session.id);
@@ -287,6 +292,7 @@ export class RoomManager {
     const code = String(rawCode ?? '').trim().toUpperCase();
     const room = this.rooms.get(code);
     if (!room || room.rec.status === 'closed') throw new GameError('Room not found');
+    if (room.banned.has(session.id)) throw new GameError('The host removed you from this room');
     const current = this.roomOf(session.id);
     if (current && current !== room) throw new GameError('Leave your current room first');
     if (!room.has(session.id) && room.rec.status === 'playing') throw new GameError('A round is in progress');
@@ -331,6 +337,26 @@ export class RoomManager {
     const room = this.hostRoom(hostId);
     if (!room.rec.players.some((p) => p.sessionId === botId && p.bot)) throw new GameError('No such bot');
     await this.dropPlayer(room, botId, 'was sent packing');
+  }
+
+  /**
+   * Host only, any time: remove a player or a spectator. Mid-round a player forfeits their hand,
+   * exactly as if they had left (the engine may end the round). People can't come back; bots just go.
+   */
+  async removeMember(hostId: string, targetId: string): Promise<void> {
+    const room = this.roomOf(hostId);
+    if (!room) throw new GameError('Not in a room');
+    if (room.rec.hostId !== hostId) throw new GameError('Only the host can remove people');
+    if (targetId === hostId) throw new GameError("You can't remove yourself. Leave instead");
+    const seat = room.rec.players.find((p) => p.sessionId === targetId);
+    const watcher = room.spectators.get(targetId);
+    if (!seat && watcher === undefined) throw new GameError('No such player');
+    if (seat?.bot) return this.dropPlayer(room, targetId, 'was sent packing');
+    room.banned.add(targetId);
+    this.out.kicked(targetId, room.rec.code);
+    if (seat) return this.dropPlayer(room, targetId, 'was removed by the host');
+    this.stopSpectating(targetId);
+    this.out.log(`r:${room.rec.code}`, { text: `${watcher} was removed by the host` });
   }
 
   private hostRoom(hostId: string): Room {

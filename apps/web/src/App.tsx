@@ -180,6 +180,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
       if (!r) {
         setView(null);
         setChat([]);
+        setLog([]);
       }
       setSynced(true);
     });
@@ -193,6 +194,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
       }
       setLog((l) => [...l.slice(-199), { ...line, id: ++logSeq, rx: Date.now() }]);
     });
+    s.on('room:kicked', ({ code }) => setError(`The host removed you from room ${code}`));
     s.on('chat:message', (m) => setChat((c) => [...c.slice(-99), { ...m, rx: Date.now() }]));
     s.on('session:replaced', () => {
       setReplaced(true);
@@ -261,6 +263,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
         setChat([]);
       }
     });
+  const kick = (id: string) => call((ack) => socket.emit('room:kick', { id }, ack));
   const sendChat: ChatSend = (req) => call((ack) => socket.emit('chat:send', req, ack)).then((r) => r.ok);
   const mute = (id: string, name: string | null) => {
     if (!roomCode) return;
@@ -292,7 +295,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           onStart={() => call((ack) => socket.emit('room:start', ack)).then((r) => r.ok && track(room.status === 'lobby' ? 'game_started' : 'round_started', { players: room.players.length, bots: room.players.filter((p) => p.bot).length }))}
           onLeave={leave}
           onAddBot={(level) => call((ack) => socket.emit('room:addBot', { level }, ack)).then((r) => r.ok && track('bot_added', { level }))}
-          onRemoveBot={(id) => call((ack) => socket.emit('room:removeBot', { id }, ack))}
+          onKick={kick}
           onSettings={(s) => call((ack) => socket.emit('room:settings', s, ack))}
           watching={watching}
           chatProps={chatProps}
@@ -307,6 +310,7 @@ function Connected({ session, onSignOut, onRules, onBack }: {
           onStart={() => call((ack) => socket.emit('room:start', ack)).then((r) => r.ok && track(room.status === 'lobby' ? 'game_started' : 'round_started', { players: room.players.length, bots: room.players.filter((p) => p.bot).length }))}
           onLeave={leave}
           onRules={onRules}
+          onKick={kick}
           chatProps={chatProps}
         />
       ) : (

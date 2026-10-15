@@ -128,6 +128,7 @@ export async function createCaboServer(opts: ServerOptions) {
       roomState: (code, state) => io.to(`r:${code}`).emit('room:state', state),
       view: (sid, view) => io.to(`s:${sid}`).emit('game:view', view),
       log: (target, event) => io.to(target).emit('game:log', { ...event, at: Date.now() }),
+      kicked: (sid, code) => io.to(`s:${sid}`).emit('room:kicked', { code }),
       detach: (sid, code) => {
         io.in(`s:${sid}`).socketsLeave(`r:${code}`);
         io.to(`s:${sid}`).emit('room:state', null);
@@ -299,6 +300,11 @@ export async function createCaboServer(opts: ServerOptions) {
     socket.on('room:removeBot', handle((req: { id: string }) => {
       if (typeof req?.id !== 'string') throw new GameError('Bad bot');
       return rooms.removeBot(sid, req.id);
+    }) as never);
+
+    socket.on('room:kick', handle((req: { id: string }) => {
+      if (typeof req?.id !== 'string') throw new GameError('Bad player');
+      return rooms.removeMember(sid, req.id);
     }) as never);
 
     socket.on('game:action', handle((raw: ClientAction) => rooms.act(sid, parseAction(raw, sid))) as never);

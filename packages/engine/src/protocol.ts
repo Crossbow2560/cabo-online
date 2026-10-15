@@ -124,6 +124,8 @@ export interface ServerToClient {
   'game:log': (event: GameEvent & { at: number }) => void;
   'session:replaced': () => void;
   'chat:message': (msg: ChatMessage) => void;
+  /** The host removed you from this room (sent just before your `room:state` becomes null). */
+  'room:kicked': (info: { code: string }) => void;
 }
 
 export interface ClientToServer {
@@ -143,6 +145,9 @@ export interface ClientToServer {
   /** Host only, between rounds. */
   'room:addBot': (req: { level: BotLevel }, ack: (r: Ack) => void) => void;
   'room:removeBot': (req: { id: string }, ack: (r: Ack) => void) => void;
+  /** Host only, any time: remove a player (bot or human; mid-round they forfeit, like leaving) or a
+   *  spectator. Removed people can't join or watch this room again. */
+  'room:kick': (req: { id: string }, ack: (r: Ack) => void) => void;
   'game:action': (action: ClientAction, ack: (r: Ack) => void) => void;
   'game:snap': (req: SnapRequest, ack: (r: Ack) => void) => void;
   /** This client's snap window ended without a snap. */

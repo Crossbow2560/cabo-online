@@ -761,6 +761,15 @@ button.pcard:disabled { opacity: 1; }
 .roster__star { display: inline-block; width: 14px; height: 14px; margin-left: 4px; vertical-align: -2px; color: var(--saddle); }
 .roster__star svg { width: 100%; height: 100%; display: block; }
 .roster__score { font-family: var(--font-display); }
+/* Host: a ✕ per row to remove that person (rows without one keep an empty cell). */
+.roster--host .roster__row { grid-template-columns: auto 1fr auto auto; }
+.roster__kick {
+  width: 22px; height: 22px; padding: 0; border: 2px solid var(--saddle); border-radius: 50%;
+  background: var(--cream); color: var(--saddle); font-weight: 800; font-size: 11px; line-height: 1; cursor: pointer;
+}
+.roster__kick:hover, .roster__kick:focus-visible { background: var(--saddle); color: var(--cream); outline: none; }
+.roster__watch-head { margin-top: 6px; font-size: 15px; }
+.posse__watcher td { color: var(--leather); }
 .log-card { width: min(380px, 90vw); }
 .log-list { list-style: none; margin: 0; padding: 0; max-height: 40vh; overflow-y: auto; font-size: 13px; scrollbar-color: var(--leather) var(--cream); }
 .log-list li { padding: 3px 0; border-bottom: 1px dotted var(--leather); }

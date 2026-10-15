@@ -927,3 +927,75 @@ describe('chat', () => {
     expect(await ana.emit('chat:send', { text: 'c' })).toEqual({ ok: false, error: 'Slow down' });
   });
 });
+
+describe('host removes people', () => {
+  type RS = import('@cabo/engine').RoomState | null;
+  const nextRoom = (b: Bot, pred: (r: RS) => boolean) =>
+    new Promise<RS>((res) => {
+      const on = (r: RS) => {
+        if (!pred(r)) return;
+        b.socket.off('room:state', on);
+        res(r);
+      };
+      b.socket.on('room:state', on);
+    });
+  const kickedNotice = (b: Bot) => new Promise<{ code: string }>((res) => b.socket.once('room:kicked', res));
+
+  it('only the host, never themselves; the removed player is told, and can not come back', async () => {
+    const { url } = await start();
+    const { bots: [host, bob, cal], code } = await lobby(url, 3);
+    expect(await bob.emit('room:kick', { id: cal.id })).toEqual({ ok: false, error: 'Only the host can remove people' });
+    expect(await host.emit('room:kick', { id: host.id })).toMatchObject({ ok: false });
+    expect(await host.emit('room:kick', { id: 'nobody' })).toEqual({ ok: false, error: 'No such player' });
+    expect(await host.emit('room:kick', {})).toEqual({ ok: false, error: 'Bad player' });
+
+    const notice = kickedNotice(bob);
+    const gone = nextRoom(bob, (r) => r === null);
+    const seen = nextRoom(host, (r) => !!r && !r.players.some((p) => p.id === bob.id));
+    expect(await host.emit('room:kick', { id: bob.id })).toEqual({ ok: true });
+    expect(await notice).toEqual({ code });
+    await gone;
+    expect((await seen)!.players.map((p) => p.id)).toEqual([host.id, cal.id]);
+    expect(host.logs.some((l) => /was removed by the host/.test(l))).toBe(true);
+
+    expect(await bob.emit('room:join', { code })).toEqual({ ok: false, error: 'The host removed you from this room' });
+    expect(await bob.emit('room:spectate', { code })).toEqual({ ok: false, error: 'The host removed you from this room' });
+    expect((await bob.emit('room:create')).ok).toBe(true); // free to play elsewhere
+  });
+
+  it('mid-round: the removed player forfeits and play carries on', async () => {
+    const { url } = await start();
+    const { bots: [host, bob, cal] } = await lobby(url, 3);
+    await startAndReady([host, bob, cal]);
+    expect(await host.emit('room:kick', { id: cal.id })).toEqual({ ok: true });
+    const v = await host.until((x) => !x.players.some((p) => p.id === cal.id));
+    expect(v.players.map((p) => p.id)).toEqual([host.id, bob.id]);
+    expect(v.phase).not.toBe('ended');
+    expect(await cal.emit('game:action', { type: 'DRAW_STOCK' })).toMatchObject({ ok: false });
+
+    // Down to one player: the round ends, last one standing.
+    expect(await host.emit('room:kick', { id: bob.id })).toEqual({ ok: true });
+    expect((await host.until((x) => x.phase === 'ended')).result?.winners).toEqual([host.id]);
+  });
+
+  it('spectators and bots too', async () => {
+    const { url } = await start();
+    const { bots: [host], code } = await lobby(url, 1);
+    const withBot = nextRoom(host, (r) => !!r?.players.some((p) => p.bot));
+    expect((await host.emit('room:addBot', { level: 'novice' })).ok).toBe(true);
+    const botId = (await withBot)!.players.find((p) => p.bot)!.id;
+    const fan = await bot(url, 'Fan');
+    await fan.emit('room:spectate', { code });
+
+    const notice = kickedNotice(fan);
+    const seen = nextRoom(host, (r) => !!r && r.spectators.length === 0);
+    expect(await host.emit('room:kick', { id: fan.id })).toEqual({ ok: true });
+    await notice;
+    await seen;
+    expect(await fan.emit('room:spectate', { code })).toEqual({ ok: false, error: 'The host removed you from this room' });
+
+    const noBot = nextRoom(host, (r) => !!r && !r.players.some((p) => p.bot));
+    expect(await host.emit('room:kick', { id: botId })).toEqual({ ok: true });
+    await noBot;
+  });
+});

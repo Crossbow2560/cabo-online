@@ -39,7 +39,7 @@ const ABILITY_TEXT: Record<string, string> = {
 type DockName = 'posse' | 'log' | 'chat';
 const DOCKS: DockName[] = ['posse', 'log', 'chat'];
 
-export function Game({ view, room, socket, log, call, onStart, onLeave, onRules, chatProps }: {
+export function Game({ view, room, socket, log, call, onStart, onLeave, onRules, onKick, chatProps }: {
   view: PlayerView;
   room: RoomState;
   socket: CaboSocket;
@@ -48,6 +48,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules,
   onStart: () => void;
   onLeave: () => void;
   onRules: () => void;
+  onKick: (id: string) => void;
   chatProps: ChatProps;
 }) {
   const [pick, setPick] = useState<Pick>(null);
@@ -456,7 +457,7 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules,
 
       <ChatBubbles chat={chatProps.chat} now={now} />
       <footer className="tfoot">
-        <PlayersCard room={room} me={me} now={now} open={docks.posse} onToggle={() => toggleDock('posse')} />
+        <PlayersCard room={room} me={me} now={now} open={docks.posse} onToggle={() => toggleDock('posse')} onKick={onKick} />
         <div className="tfoot__right">
           <ChatDock {...chatProps} open={docks.chat} onToggle={() => toggleDock('chat')} />
           <LogDock log={log} open={docks.log} onToggle={() => toggleDock('log')} />

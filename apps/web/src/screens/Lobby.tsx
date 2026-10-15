@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BOT_LEVELS, MAX_PLAYERS, MIN_PLAYERS, type BotLevel, type GameSettings, type RoomState } from '@cabo/engine';
 import { ChatDock, type ChatProps } from '../components/ChatDock';
 import { CopyField } from '../components/CopyField';
+import { useKickConfirm } from '../components/KickConfirm';
 import { FinalResults } from '../components/FinalResults';
 import { SoundControl } from '../components/SoundControl';
 import { GameSettingsDialog } from '../components/GameSettings';
@@ -20,13 +21,14 @@ const LEVEL_INFO: Record<BotLevel, { label: string; hint: string }> = {
   expert: { label: 'Expert', hint: "Quick · You ain't leavin' the table"},
 };
 
-export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSettings, watching = false, chatProps }: {
+export function Lobby({ room, me, onStart, onLeave, onAddBot, onKick, onSettings, watching = false, chatProps }: {
   room: RoomState;
   me: string;
   onStart: () => void;
   onLeave: () => void;
   onAddBot: (level: BotLevel) => void;
-  onRemoveBot: (id: string) => void;
+  /** Host: remove a player, bot or spectator. */
+  onKick: (id: string) => void;
   /** Host: save the lobby ⚙ settings. */
   onSettings: (s: GameSettings) => void;
   /** Watching without a seat. */
@@ -34,6 +36,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
   chatProps: ChatProps;
 }) {
   const [chatOpen, setChatOpen] = useState(false);
+  const kick = useKickConfirm(onKick, false);
   const now = useNow(1000);
   const isHost = room.hostId === me;
   const link = `${usePublicUrl()}/?room=${room.code}`;
@@ -175,8 +178,13 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
                   <td className="posse__status-col">
                     <span className={`status-dot ${p.connected ? 'status-dot--on' : ''}`} aria-hidden />
                     <span className="posse__status-text">{p.bot ? 'Bot' : p.connected ? 'Online' : 'Away'}</span>
-                    {p.bot && isHost && (
-                      <button className="posse__remove" onClick={() => onRemoveBot(p.id)} aria-label={`Remove ${p.name}`} title="Remove bot">
+                    {isHost && p.id !== me && (
+                      <button
+                        className="posse__remove"
+                        onClick={() => kick.ask(p.id, p.name, { bot: p.bot })}
+                        aria-label={`Remove ${p.name}`}
+                        title={p.bot ? 'Remove bot' : 'Remove from room'}
+                      >
                         ✕
                       </button>
                     )}
@@ -192,6 +200,28 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
                 <tr key={`empty-${i}`} className="posse__empty">
                   <td className="posse__seat">{room.players.length + i + 1}</td>
                   <td colSpan={2}>Waiting for a partner…</td>
+                </tr>
+              ))}
+              {room.spectators.map((s) => (
+                <tr key={s.id} className="posse__watcher">
+                  <td className="posse__seat" aria-hidden>👁</td>
+                  <td>
+                    <span className="posse__name">{s.name}</span>
+                    {s.id === me && <span className="you-tag">(you)</span>}
+                  </td>
+                  <td className="posse__status-col">
+                    <span className="posse__status-text">Watching</span>
+                    {isHost && (
+                      <button
+                        className="posse__remove"
+                        onClick={() => kick.ask(s.id, s.name, { spectator: true })}
+                        aria-label={`Remove ${s.name}`}
+                        title="Remove from room"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -224,6 +254,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onRemoveBot, onSet
           </button>
         )}
       </div>
+      {kick.dialog}
       <ChatDock {...chatProps} open={chatOpen} onToggle={() => setChatOpen((o) => !o)} className="lobby__chat" />
     </main>
   );

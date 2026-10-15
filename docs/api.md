@@ -75,6 +75,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `room:resume` | none | `{ ok }` | Anyone seated. Deadlines move later by the time spent paused. |
 | `room:addBot` | `{ level }` | `{ ok }` | Host only, not mid-round. Seats a server-driven bot; `level` is `beginner`, `novice`, `intermediate` (default) or `expert` (see [bots](bots.md)). `Unknown bot level` otherwise. |
 | `room:removeBot` | `{ id }` | `{ ok }` | Host only, not mid-round. `No such bot` if `id` isn't a bot in the room. |
+| `room:kick` | `{ id }` | `{ ok }` | Host only, at any time. Removes a player (human or bot) or a spectator. Mid-round a player forfeits exactly as with `room:leave`: their cards leave the table, and if one player remains they win. A removed person gets `room:kicked`, then `room:state` `null`, and can't `room:join` or `room:spectate` that room again (`The host removed you from this room`). The ban is in memory only, so a server restart forgets it. Errors: `Only the host can remove people`, `You can't remove yourself. Leave instead`, `No such player`. |
 | `game:action` | `ClientAction` | `{ ok }` | See the actions table below. Include `expectedVersion` (from the last `game:view`) to reject stale clicks. |
 | `game:snap` | `{ windowId, ownerId, slot, reactionMs }` | `{ ok }` | Queues your snap for this window (one per player). `reactionMs` = time from this client seeing the window to the tap; clamped server-side to ≥120ms and ≤ the time elapsed on arrival. The outcome arrives as `game:log` events when the window resolves; a lost race gets a private "Too slow — someone snapped first". Errors: `You already snapped this time`, `Too slow — the snap window is closed`. Rate-limited to 5 per second per socket. |
 | `game:snapPass` | `{ windowId }` | `{ ok }` | "My window ended and I didn't snap": lets the server resolve the window without waiting out the 1.5s grace. |
@@ -112,6 +113,7 @@ Client → server events take an acknowledgement callback, which receives `{ ok:
 | `game:view` | `PlayerView \| null` | After every accepted action, for each player, redacted for them. |
 | `game:log` | `GameEvent & { at }` | Each engine event. Public ones go to the room; private ones (`to` set) only to that player. |
 | `session:replaced` | none | This socket was replaced by a newer one for the same session. |
+| `room:kicked` | `{ code }` | The host removed you from room `code`. `room:state` `null` follows. |
 | `chat:message` | `ChatMessage` | Someone in the room sent `chat:send`. Goes to every player and spectator in the room, the sender included. |
 
 **`RoomState`:**
