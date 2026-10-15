@@ -50,11 +50,39 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
+    <!-- Boot splash, shown until React mounts. Inline, so it's styled before theme.css arrives. -->
+    <style>
+      .boot { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: linear-gradient(#fed8b1, #ecb176 75%); font-family: Nunito, system-ui, sans-serif; }
+      /* Same wordmark as the app's <Title>: outline copy underneath, gradient fill on top. */
+      .boot__title { display: grid; margin: 0; font-family: 'Alfa Slab One', Georgia, serif; font-size: clamp(72px, 18vw, 160px); line-height: 0.9; letter-spacing: 0.02em; user-select: none; filter: drop-shadow(0 0.04em 0 #6f4e37) drop-shadow(0 0.04em 0 #4e3727); }
+      .boot__title > span { grid-area: 1 / 1; }
+      .boot__outline { color: #6f4e37; -webkit-text-stroke: 0.12em #6f4e37; }
+      .boot__fill { background: linear-gradient(180deg, #fed8b1 15%, #ecb176 85%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+      .boot__pill { margin: 0; padding: 6px 18px; border-radius: 999px; background: #6f4e37; color: #fed8b1; font-weight: 800; font-size: clamp(16px, 3.4vw, 22px); box-shadow: 0 4px 0 #4e3727; }
+      .boot__dots span { display: inline-block; animation: boot-dot 1.2s ease-in-out infinite; }
+      .boot__dots span:nth-child(2) { animation-delay: 0.15s; }
+      .boot__dots span:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes boot-dot { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+      @media (prefers-reduced-motion: reduce) { .boot__dots span { animation: none; } }
+      /* For crawlers and screen readers, not for the eye: React replaces the whole #root on mount. */
+      .seo { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+    </style>
+    <!-- Without JavaScript nothing will replace the splash: show the description instead. -->
+    <noscript>
+      <style>
+        .boot { display: none; }
+        .seo { position: static; width: auto; height: auto; margin: 0 auto; overflow: visible; clip: auto; white-space: normal; max-width: 42rem; padding: 2rem 1rem; color: #6f4e37; line-height: 1.5; font-family: Nunito, system-ui, sans-serif; }
+      </style>
+    </noscript>
   </head>
   <body>
     <div id="root">
-      <!-- Crawlable description of the game. React replaces this when the app mounts. -->
-      <main style="max-width: 42rem; margin: 0 auto; padding: 2rem 1rem; font-family: Nunito, system-ui, sans-serif; color: #6f4e37; line-height: 1.5">
+      <div class="boot" aria-hidden="true">
+        <p class="boot__title"><span class="boot__outline">CABO</span><span class="boot__fill">CABO</span></p>
+        <p class="boot__pill">Saddling up<span class="boot__dots"><span>.</span><span>.</span><span>.</span></span></p>
+      </div>
+      <!-- Crawlable description of the game, visually hidden while the app loads. React replaces it on mount. -->
+      <main class="seo">
         <h1>Cabo – the online card game</h1>
         <p>
           Cabo is a memory card game for 2 to 8 players where the lowest hand wins. This is a free, real-time
