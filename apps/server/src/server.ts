@@ -184,7 +184,12 @@ export async function createCaboServer(opts: ServerOptions) {
 
   if (opts.webDist && existsSync(opts.webDist)) {
     app.use(express.static(opts.webDist));
-    app.get('*', (_req, res) => res.sendFile(path.join(opts.webDist!, 'index.html')));
+    // SPA fallback for page routes only. A missing file (anything with an extension, e.g. an old
+    // /favicon.ico) gets a real 404, not the HTML page: crawlers reject an "icon" that's HTML.
+    app.get('*', (req, res) => {
+      if (path.extname(req.path)) return res.status(404).end();
+      res.sendFile(path.join(opts.webDist!, 'index.html'));
+    });
   }
 
   // ---- sockets ----

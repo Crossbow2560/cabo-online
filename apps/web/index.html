@@ -25,6 +25,16 @@
     <meta name="twitter:description" content="Create a room, share the link and play in seconds. 2–8 players, lowest hand wins." />
     <meta name="twitter:image" content="https://cabo.nishit-db.com/og-image.png" />
 
+    <!-- Site name in search results ("Cabo" rather than the bare domain). -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Cabo",
+        "alternateName": ["Cabo card game", "Cabo online"],
+        "url": "https://cabo.nishit-db.com/"
+      }
+    </script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -43,8 +53,13 @@
       }
     </script>
 
-    <!-- The card back doubles as the game's logo. -->
+    <!-- The card back doubles as the game's logo. Google's results want a square icon of at least
+         48px (a multiple of 48), and also try /favicon.ico. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
