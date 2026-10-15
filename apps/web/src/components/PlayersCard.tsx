@@ -57,7 +57,7 @@ export function PlayersCard({ room, me, now, open, onToggle, onKick }: {
               <ul className="roster">
                 {room.spectators.map((s) => (
                   <li key={s.id} className="roster__row">
-                    <span aria-hidden>👁</span>
+                    <Icon name="binoculars" className="watch-icon" />
                     <span className="roster__name">
                       {s.name}
                       {s.id === me && <span className="you-tag">(you)</span>}

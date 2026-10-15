@@ -109,7 +109,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onKick, onSettings
             Posse <span className="posse__count">({room.players.length}/{MAX_PLAYERS})</span>
             {room.spectators.length > 0 && (
               <span className="posse__watchers" title={room.spectators.map((s) => s.name).join(', ')}>
-                {' '}· 👁 {room.spectators.length}
+                {' '}· <Icon name="binoculars" className="watch-icon" /> {room.spectators.length}
               </span>
             )}
           </span>
@@ -204,7 +204,9 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onKick, onSettings
               ))}
               {room.spectators.map((s) => (
                 <tr key={s.id} className="posse__watcher">
-                  <td className="posse__seat" aria-hidden>👁</td>
+                  <td className="posse__seat" title="Watching">
+                    <Icon name="binoculars" className="watch-icon" />
+                  </td>
                   <td>
                     <span className="posse__name">{s.name}</span>
                     {s.id === me && <span className="you-tag">(you)</span>}

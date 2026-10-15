@@ -769,6 +769,10 @@ button.pcard:disabled { opacity: 1; }
 }
 .roster__kick:hover, .roster__kick:focus-visible { background: var(--saddle); color: var(--cream); outline: none; }
 .roster__watch-head { margin-top: 6px; font-size: 15px; }
+/* Spectators: the same binoculars as the Spectate tile, sized to the text around it. */
+.watch-icon { width: 1.05em; height: 1.05em; vertical-align: -0.15em; color: var(--saddle); }
+.watch-icon svg { display: block; width: 100%; height: 100%; }
+.posse__watchers .watch-icon { color: var(--leather); }
 .posse__watcher td { color: var(--leather); }
 .log-card { width: min(380px, 90vw); }
 .log-list { list-style: none; margin: 0; padding: 0; max-height: 40vh; overflow-y: auto; font-size: 13px; scrollbar-color: var(--leather) var(--cream); }
