@@ -55,6 +55,20 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
     };
   }, [open]);
 
+  // Closed: "/" opens the chat (unless you're typing somewhere, or a dialog is up).
+  useEffect(() => {
+    if (open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+      e.preventDefault(); // or the "/" lands in the text box once it's focused
+      toggleRef.current();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
   // Unread: messages from others received since the panel was last open.
   const [seenRx, setSeenRx] = useState(() => Date.now());
   const last = chat.at(-1)?.rx ?? 0;
@@ -66,6 +80,15 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
   useEffect(() => {
     if (open) listRef.current?.scrollTo(0, listRef.current.scrollHeight);
   }, [open, chat.length]);
+
+  // With a mouse, opening the chat puts the cursor straight in the text box (so does ✕ out of the
+  // quick-chat picker). Not on touch screens: focusing would pop the on-screen keyboard over the table.
+  const focusInput = () => {
+    if (!window.matchMedia?.('(pointer: coarse)').matches) inputRef.current?.focus({ preventScroll: true });
+  };
+  useEffect(() => {
+    if (open) focusInput();
+  }, [open]);
 
   const send = async () => {
     const text = draft.trim();
@@ -135,7 +158,10 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
             <button
               type="button"
               className="chat-form__quick"
-              onClick={() => setPicking((p) => !p)}
+              onClick={() => {
+                if (picking) focusInput();
+                setPicking(!picking);
+              }}
               aria-pressed={picking}
               aria-label={picking ? 'Back to messages' : 'Quick chats'}
               title={picking ? 'Back to messages' : 'Quick chats'}
@@ -168,6 +194,8 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
         aria-expanded={open}
         aria-controls="chat-card"
         aria-label={unread > 0 ? `Chat, ${unread} unread` : 'Chat'}
+        aria-keyshortcuts="/"
+        title="Chat (/)"
         onClick={onToggle}
       >
         Chat{unread > 0 && <span className="chip__badge" aria-hidden>{unread > 9 ? '9+' : unread}</span>} {open ? '▾' : '▴'}
