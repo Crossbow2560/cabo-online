@@ -57,7 +57,7 @@ You should get `{"sessionId":"…","nickname":"Ana","token":"…"}`. Then:
 
 ## Production (Docker)
 
-One container serves the built web client, the API and the sockets on port 3101:
+One container serves the built web client, the API and the sockets on port 3101, published on `127.0.0.1` only (so a proxy or tunnel on another machine, or in a container that can't see the host's loopback, needs that line in `docker-compose.yml` changed):
 ```bash
 docker compose up -d --build
 ```

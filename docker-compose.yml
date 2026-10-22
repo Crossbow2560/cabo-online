@@ -4,7 +4,9 @@ services:
     image: cabo-online
     restart: unless-stopped
     ports:
-      - "3101:3101"
+      # this machine only: the Cloudflare Tunnel reaches it on 127.0.0.1, and nothing else can
+      # bypass the tunnel and fake CF-Connecting-IP (TRUST_PROXY=1 trusts that header)
+      - "127.0.0.1:3101:3101"
     # DATABASE_URL (Supabase session-pooler string). Missing = in-memory storage.
     env_file:
       - path: apps/server/.env
