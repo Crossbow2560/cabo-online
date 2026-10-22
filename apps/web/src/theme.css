@@ -806,37 +806,38 @@ button.pcard:disabled { opacity: 1; }
 /* 16px keeps phones from zooming in on focus. */
 .chat-form .chat-form__input { font-size: 16px; padding: 6px 10px; border-width: 3px; border-radius: 10px; min-width: 0; }
 
-/* Chat pops: a sender's latest line, hinged on the side of their name plate. They live in a fixed
-   layer over the page (ChatBubbles), so they cover the table rather than taking room on it.
-   Above the table and pause blur (30), below the bottom docks (35) and card flights (50). */
-.chat-pops { position: fixed; inset: 0; z-index: 34; pointer-events: none; }
-.chat-pop { --dir: 1; position: absolute; transform: translateY(-50%); }
-.chat-pop--flip { --dir: -1; transform: translate(-100%, -50%); }
-.chat-pop__body {
-  position: relative; width: max-content; max-width: 210px; padding: 5px 11px;
-  font-size: 13px; font-weight: 800; line-height: 1.25; color: var(--saddle); overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
-  background: var(--cream); border: 2px solid var(--saddle); border-radius: 4px 14px 14px 14px;
-  box-shadow: 0 4px 0 var(--saddle-deep), 0 10px 22px rgb(0 0 0 / 0.28);
-  transform-origin: left center;
-  animation: chat-pop-in 460ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+/* Chat popups: while the chat is closed, other people's new messages show briefly just above the
+   Chat chip (newest at the bottom). Tapping one opens the chat. */
+.chat-popups {
+  position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 11;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  width: max-content; max-width: min(300px, calc(100vw - 24px));
 }
-.chat-pop--flip .chat-pop__body { transform-origin: right center; border-radius: 14px 4px 14px 14px; }
-.chat-pop__body--quick { font-size: 15px; }
-.chat-pop--out .chat-pop__body { animation: chat-pop-out 280ms ease-in both; }
-@keyframes chat-pop-in {
-  0% { opacity: 0; transform: rotate(calc(-45deg * var(--dir))) scale(0.35); }
-  55% { opacity: 1; transform: rotate(calc(8deg * var(--dir))) scale(1.08); }
-  78% { transform: rotate(calc(-3deg * var(--dir))) scale(0.98); }
-  100% { opacity: 1; transform: rotate(0) scale(1); }
+.chat-popup {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; max-width: 100%;
+  padding: 6px 12px 7px; text-align: left; cursor: pointer;
+  font-family: var(--font-body); font-size: 13px; line-height: 1.25; color: var(--saddle);
+  background: var(--cream); border: 2px solid var(--saddle); border-radius: 14px 14px 4px 14px;
+  box-shadow: 0 3px 0 var(--saddle-deep), 0 8px 18px rgb(0 0 0 / 0.22);
+  transform-origin: bottom right;
+  animation: chat-popup-in 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-@keyframes chat-pop-out {
-  from { opacity: 1; transform: rotate(0) scale(1); }
-  to { opacity: 0; transform: rotate(calc(-45deg * var(--dir))) scale(0.5); }
+.chat-popup:hover, .chat-popup:focus-visible { background: var(--sand-light); outline: none; }
+.chat-popup__name { font-size: 11px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--leather); }
+.chat-popup__text {
+  font-weight: 800; max-width: 100%; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
+.chat-popup__text--quick { font-size: 16px; }
+.chat-popup--out { animation: chat-popup-out 300ms ease-in both; }
+@keyframes chat-popup-in {
+  0% { opacity: 0; transform: translateY(10px) scale(0.85); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes chat-popup-out { to { opacity: 0; transform: translateX(14px) scale(0.95); } }
 @media (prefers-reduced-motion: reduce) {
-  .chat-pop__body { animation: none; }
-  .chat-pop--out .chat-pop__body { animation: none; opacity: 0; transition: opacity 200ms; }
+  .chat-popup { animation: none; }
+  .chat-popup--out { animation: none; opacity: 0; transition: opacity 200ms; }
 }
 
 /* Lobby: the chat sits in the bottom-right corner of the screen. */
@@ -1592,6 +1593,13 @@ button.pcard:disabled { opacity: 1; }
   width: min(420px, calc(100vw - 380px)); min-height: 0; display: flex; justify-content: center; z-index: 36;
 }
 .table--short .toast, .table--wide .toast { box-shadow: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-size: 12px; padding: 3px 10px; }
+/* The bottom bar reads: Posse chip | events | chat pill | Chat, Log chips. The event line takes the
+   space between the Posse chip and the chat pill (sizes: chips' widths + gutters, measured). */
+.table--short .toasts, .table--wide .toasts {
+  left: var(--bar-left); right: calc(var(--bar-chips) + var(--bar-pill) + 12px); width: auto; transform: none;
+}
+.table--short { --bar-left: 112px; --bar-chips: 172px; --bar-pill: 128px; }
+.table--wide { --bar-left: 152px; --bar-chips: 196px; --bar-pill: 220px; }
 .table--short .toast:not(:last-child), .table--wide .toast:not(:last-child) { display: none; }
 
 /* ======== phones held upright: turn sideways to play ======== */
@@ -1761,9 +1769,28 @@ button.pcard:disabled { opacity: 1; }
   .chat-form .btn { font-size: 11px; padding: 2px 10px; box-shadow: 0 2px 0 var(--saddle-deep); }
   /* 16px stops iOS zooming in on focus; the box itself stays short. */
   .chat-form .chat-form__input { font-size: 16px; padding: 2px 8px; border-width: 2px; border-radius: 8px; height: 30px; }
-  .chat-pop__body { max-width: 150px; font-size: 11px; padding: 3px 8px; -webkit-line-clamp: 2; }
-  .chat-pop__body--quick { font-size: 13px; }
 }
+/* Pill mode (always at the table; the lobby on short screens): the table above the bar isn't reliably
+   free (seats, piles, hand, action buttons move with the layout and the phase), so the popup is a
+   one-line pill in the bar itself, left of the Chat chip, newest message only. Where the event line
+   also sits in the bar, it leaves the pill room (.toasts below). */
+.chat-popups--pill { right: calc(100% + 6px); bottom: 0; max-width: var(--chat-pill, 128px); }
+.tfoot { --chat-pill: 220px; }
+.table--short ~ .tfoot { --chat-pill: 128px; }
+.chat-popups--pill .chat-popup:not(:last-child) { display: none; }
+.chat-popups--pill .chat-popup {
+  flex-direction: row; align-items: baseline; gap: 5px; max-width: 100%;
+  padding: 3px 10px; border-radius: 999px; font-size: 12px; white-space: nowrap;
+  box-shadow: 0 2px 0 var(--saddle-deep); transform-origin: right center;
+  animation-name: chat-pill-in; /* slides out from the chip, never below the bar */
+}
+@keyframes chat-pill-in {
+  0% { opacity: 0; transform: translateX(12px) scale(0.9); }
+  100% { opacity: 1; transform: none; }
+}
+.chat-popups--pill .chat-popup__name { font-size: 10px; flex-shrink: 0; }
+.chat-popups--pill .chat-popup__text { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-popups--pill .chat-popup__text--quick { font-size: 13px; }
 /* No hover on touch screens: keep the mute buttons visible. */
 @media (pointer: coarse) {
   .chat-line__mute { opacity: 0.7; font-size: 13px; padding: 0 4px; }

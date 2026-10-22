@@ -1,5 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import { CHAT_MAX_LEN, QUICK_CHATS, type QuickChatId } from '@cabo/engine';
 import type { ChatLine } from '../App';
 
@@ -14,8 +13,11 @@ export interface ChatProps {
   onMute: (id: string, name: string | null) => void;
 }
 
+const POPUP_MS = 4500;
+const POPUP_OUT_MS = 300;
+
 /** Collapsible room chat: messages, one-tap quick chats, and a text box. */
-export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, className = '' }: {
+export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, className = '', pill = false }: {
   chat: ChatLine[];
   me: string;
   /** Open state lives with the parent, so on phones the table can close the other docks. */
@@ -26,6 +28,8 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
   muted: Map<string, string>;
   onMute: (id: string, name: string | null) => void;
   className?: string;
+  /** Popups as a one-line pill in the bottom bar, left of the chip (where the corner above isn't free). */
+  pill?: boolean;
 }) {
   const [draft, setDraft] = useState('');
   // Phones: quick chats take the message list's place while picking (the toggle is hidden elsewhere).
@@ -90,6 +94,21 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
     if (open) focusInput();
   }, [open]);
 
+  // Closed: other people's new messages pop up briefly above the Chat chip. Their own timer, so
+  // they leave on time wherever the dock is (the lobby re-renders far less often than the table).
+  const [now, setNow] = useState(() => Date.now());
+  // Only what arrived since the panel was last open (not what you just read), newest two.
+  const popups = open ? [] : chat.filter((m) => m.fromId !== me && m.rx > seenRx && now - m.rx < POPUP_MS).slice(-2);
+  useEffect(() => {
+    // Re-render when the next popup starts leaving, or is gone.
+    const t0 = Date.now();
+    const times = popups.flatMap((m) => [m.rx + POPUP_MS - POPUP_OUT_MS, m.rx + POPUP_MS]).filter((t) => t > t0);
+    if (!times.length) return;
+    const t = window.setTimeout(() => setNow(Date.now()), Math.min(...times) - t0 + 5);
+    return () => window.clearTimeout(t);
+  });
+  useEffect(() => setNow(Date.now()), [chat.length]);
+
   const send = async () => {
     const text = draft.trim();
     if (!text) return;
@@ -98,6 +117,21 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
 
   return (
     <div className={`dock dock--right ${className}`} ref={rootRef}>
+      {popups.length > 0 && (
+        <div className={`chat-popups ${pill ? 'chat-popups--pill' : ''}`} role="status" aria-live="polite">
+          {popups.map((m) => (
+            <button
+              key={m.id}
+              className={`chat-popup ${now - m.rx > POPUP_MS - POPUP_OUT_MS ? 'chat-popup--out' : ''}`}
+              onClick={onToggle}
+              title="Open chat"
+            >
+              <span className="chat-popup__name">{m.fromName}</span>
+              <span className={`chat-popup__text ${m.quick ? 'chat-popup__text--quick' : ''}`}>{m.text}</span>
+            </button>
+          ))}
+        </div>
+      )}
       {open && (
         <div className={`panel mini-card chat-card ${picking ? 'chat-card--picking' : ''}`} id="chat-card">
           <div className="mini-card__head">
@@ -201,60 +235,5 @@ export function ChatDock({ chat, me, open, onToggle, onSend, muted, onMute, clas
         Chat{unread > 0 && <span className="chip__badge" aria-hidden>{unread > 9 ? '9+' : unread}</span>} {open ? '▾' : '▴'}
       </button>
     </div>
-  );
-}
-
-const BUBBLE_MS = 3500;
-const BUBBLE_OUT_MS = 300;
-/** Room a bubble needs to the right of a name plate before it flips to the left. */
-const BUBBLE_ROOM = 230;
-
-type BubblePos = { x: number; y: number; flip: boolean };
-
-/**
- * Each sender's latest message, popped out beside their name plate for a few seconds. Drawn in a
- * fixed layer over the page (not inside the seats), so it never moves or resizes anything on the table.
- * Spectators have no plate, so their messages only show in the chat.
- */
-export function ChatBubbles({ chat, now }: { chat: ChatLine[]; now: number }) {
-  const latest = new Map<string, ChatLine>();
-  for (const m of chat) if (now - m.rx < BUBBLE_MS) latest.set(m.fromId, m);
-  const live = [...latest.values()];
-
-  // Plates move with the layout (resizes, seats joining): measure them after every render
-  // (Game re-renders a few times a second) and only re-render here when something moved.
-  const [pos, setPos] = useState<Record<string, BubblePos>>({});
-  const key = live.map((m) => m.id).join(',');
-  useLayoutEffect(() => {
-    const next: Record<string, BubblePos> = {};
-    for (const m of live) {
-      const plate = document.querySelector<HTMLElement>(`[data-seat="${CSS.escape(m.fromId)}"] .seat__plate`);
-      if (!plate) continue;
-      const r = plate.getBoundingClientRect();
-      const flip = r.right + BUBBLE_ROOM > window.innerWidth;
-      next[m.fromId] = { x: Math.round(flip ? r.left - 4 : r.right + 4), y: Math.round(r.top + r.height / 2), flip };
-    }
-    if (JSON.stringify(next) !== JSON.stringify(pos)) setPos(next);
-  });
-
-  if (!key) return null;
-  return createPortal(
-    <div className="chat-pops" aria-hidden>
-      {live.map((m) => {
-        const p = pos[m.fromId];
-        if (!p) return null;
-        const leaving = now - m.rx > BUBBLE_MS - BUBBLE_OUT_MS;
-        return (
-          <div
-            key={m.id}
-            className={`chat-pop ${p.flip ? 'chat-pop--flip' : ''} ${leaving ? 'chat-pop--out' : ''}`}
-            style={{ left: p.x, top: p.y }}
-          >
-            <div className={`chat-pop__body ${m.quick ? 'chat-pop__body--quick' : ''}`}>{m.text}</div>
-          </div>
-        );
-      })}
-    </div>,
-    document.body,
   );
 }

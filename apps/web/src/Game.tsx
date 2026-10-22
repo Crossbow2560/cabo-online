@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cardLabel, type Ack, type Card, type ClientAction, type PlayerView, type RoomState } from '@cabo/engine';
 import type { CaboSocket, LogLine } from './App';
-import { ChatBubbles, ChatDock, type ChatProps } from './components/ChatDock';
+import { ChatDock, type ChatProps } from './components/ChatDock';
 import { ActionBar, blindPick, kingChoice, kingDeciding, type Pick } from './components/ActionBar';
 import { ConfirmDialog } from './components/ConfirmDialog';
 import { LogDock, Toasts } from './components/EventFeed';
@@ -455,11 +455,11 @@ export function Game({ view, room, socket, log, call, onStart, onLeave, onRules,
         )}
       </section>
 
-      <ChatBubbles chat={chatProps.chat} now={now} />
       <footer className="tfoot">
         <PlayersCard room={room} me={me} now={now} open={docks.posse} onToggle={() => toggleDock('posse')} onKick={onKick} />
         <div className="tfoot__right">
-          <ChatDock {...chatProps} open={docks.chat} onToggle={() => toggleDock('chat')} />
+          {/* The table above the bar is never reliably free, so chat pops up in the bar itself. */}
+          <ChatDock {...chatProps} open={docks.chat} onToggle={() => toggleDock('chat')} pill />
           <LogDock log={log} open={docks.log} onToggle={() => toggleDock('log')} />
         </div>
       </footer>

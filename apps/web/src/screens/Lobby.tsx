@@ -7,6 +7,7 @@ import { FinalResults } from '../components/FinalResults';
 import { SoundControl } from '../components/SoundControl';
 import { GameSettingsDialog } from '../components/GameSettings';
 import { useMusic } from '../lib/sound';
+import { useMediaQuery } from '../lib/useMediaQuery';
 import { Icon } from '../components/Icon';
 import { Title } from '../components/Title';
 import { usePublicUrl } from '../lib/config';
@@ -36,6 +37,8 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onKick, onSettings
   chatProps: ChatProps;
 }) {
   const [chatOpen, setChatOpen] = useState(false);
+  // Phones on their side: the lobby fills the screen, so chat popups stay in the bottom row.
+  const shortScreen = useMediaQuery('(orientation: landscape) and (max-height: 520px)');
   const kick = useKickConfirm(onKick, false);
   const now = useNow(1000);
   const isHost = room.hostId === me;
@@ -257,7 +260,7 @@ export function Lobby({ room, me, onStart, onLeave, onAddBot, onKick, onSettings
         )}
       </div>
       {kick.dialog}
-      <ChatDock {...chatProps} open={chatOpen} onToggle={() => setChatOpen((o) => !o)} className="lobby__chat" />
+      <ChatDock {...chatProps} open={chatOpen} onToggle={() => setChatOpen((o) => !o)} className="lobby__chat" pill={shortScreen} />
     </main>
   );
 }
