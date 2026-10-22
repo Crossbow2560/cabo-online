@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch: # manual "Run workflow" button
 
+# the workflow token can only read the repo, even if a step is compromised
+permissions:
+  contents: read
+
 # never run two deploys at once; a newer push waits for the current one
 concurrency:
   group: deploy-production

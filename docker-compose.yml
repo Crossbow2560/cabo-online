@@ -11,6 +11,17 @@ services:
     env_file:
       - path: apps/server/.env
         required: false
+    # hardening: a bug in the server shouldn't be able to write to the image, gain privileges or
+    # starve the other services on this machine
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m # required: tsx writes its cache to /tmp (crashes on boot without it)
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
 
   # ---- Umami (self-hosted, cookie-free analytics). Off unless asked for:
   #   docker compose --profile analytics up -d
